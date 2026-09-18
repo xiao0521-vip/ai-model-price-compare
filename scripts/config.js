@@ -17,7 +17,7 @@
 
 const AX = require('axios');
 const {
-  parseModelPriceTable, parseHtmlPrices, fetchWithRetry, extractText, toTokens,
+  parseModelPriceTable, parseHtmlPrices, fetchWithRetry, extractText, toTokens, coreTokens,
 } = require('./lib');
 
 /** USD → CNY。⚠️ 全项目唯一定义处；verify-data 会校验它与 data.js META.fx 一致 */
@@ -107,7 +107,10 @@ const openrouter = {
   // OpenRouter 报价与官方不一致、经人工核实后排除的模型（宁可漏更新，不可写错价）：
   //   gpt-5.6-sol —— OpenAI 官方促销价 $4/$20（至 2026-11-21，见 developers.openai.com），
   //                  OpenRouter 却报 $2/$10，恰好一半，来源不明 → 不采信
-  skip: new Set(['gpt-5.6-sol']),
+  //   deepseek-v4-flash / deepseek-v4-pro —— DeepSeek 官方价 ¥1/¥2、¥3/¥6（见 api-docs.deepseek.com），
+  //                  OpenRouter 报聚合平台转售价（Flash 仅 1/3、Pro 高 3.8 倍），口径完全不同 → 不采信，
+  //                  这两款锁定官方直连价，除非官方调价（改 data.js 时同步核对 priceSrc）
+  skip: new Set(['gpt-5.6-sol', 'deepseek-v4-flash', 'deepseek-v4-pro']),
   fetch: async function() {
     const res = await AX.get(this.apiBase + '/models', {
       headers: { Accept: 'application/json' },
@@ -138,7 +141,15 @@ const openrouter = {
       let id = String(m.id || '').replace(/^~/, '').trim();
       if (id.includes('/')) id = id.slice(id.lastIndexOf('/') + 1);
       if (!id) continue;
-      if (this.skip && this.skip.has(id)) { skippedExcluded++; continue; }
+      // 排除判定用核心词元比对而非精确 id：OpenRouter 的变体后缀（-latest、-0813、:batch 等）
+      // 会让 deepseek-v4-flash 精确匹配失效，绕过名单。核心词元相同即视为同一模型。
+      if (this.skip && this.skip.size) {
+        const idCore = coreTokens(id).sort().join(' ');
+        if ([...this.skip].some(s => coreTokens(s).sort().join(' ') === idCore)) {
+          skippedExcluded++;
+          continue;
+        }
+      }
 
       models[id] = {
         input: Number((pin * FX * 1e6).toFixed(4)),

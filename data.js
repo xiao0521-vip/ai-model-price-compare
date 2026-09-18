@@ -523,7 +523,7 @@ var MODELS = [
 {
   name: "DeepSeek-V4-Flash", short: "DeepSeek V4 Flash", family: "DeepSeek V4",
   vendor: "DeepSeek", vendorZh: "深度求索", type: "性价比", billing: "per_token",
-  inputPm: 0.3439, outputPm: 0.6878, cnyOnly: true, context: "1.0M",
+  inputPm: 1, outputPm: 2, cnyOnly: true, context: "1.0M",
   tags: ["text","code","reasoning","longctx"],
   vendorTag: "官方",
   priceSrc: "DeepSeek官方 + 阿里百炼/硅基流动同价（¥1/¥2），另有错峰分时价低至5折",
@@ -543,7 +543,7 @@ var MODELS = [
 {
   name: "DeepSeek-V4-Pro", short: "DeepSeek V4 Pro", family: "DeepSeek V4",
   vendor: "DeepSeek", vendorZh: "深度求索", type: "通用均衡", billing: "per_token",
-  inputPm: 11.36, outputPm: 22.72, cnyOnly: true, context: "1.0M",
+  inputPm: 3, outputPm: 6, cnyOnly: true, context: "1.0M",
   tags: ["text","code","reasoning","longctx"],
   vendorTag: "官方",
   priceSrc: "DeepSeek官方 ¥3/¥6；百炼同价，硅基流动 ¥12/¥24（按美元结算基准上浮）",
