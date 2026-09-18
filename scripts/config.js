@@ -27,6 +27,9 @@
 const AX = require('axios');
 const { parseHtmlPrices, extractText } = require('./lib');
 
+// USD → CNY，与 data.js 的 META.fx 保持一致
+const FX = 7.1;
+
 /* ============================================================
  * 通用 HTML 价格解析器
  * ============================================================ */
@@ -65,7 +68,78 @@ function pick(obj, keys) {
 }
 
 /* ============================================================
- * 1. SiliconFlow（硅基流动）— 有公开 API
+ * 0. OpenRouter — 公开模型列表接口，自带价格，无需密钥
+ *
+ *    这是覆盖面最广、也是唯一「立刻能跑通」的源：
+ *    实测 446 个模型、416 个含有效价格，横跨 OpenAI / Anthropic /
+ *    Google / DeepSeek / 通义 / 智谱 / Kimi / MiniMax / xAI / Llama 等。
+ *
+ *    字段：pricing.prompt / pricing.completion，单位是「美元 / 每 token」。
+ *    换算：美元/token × FX × 1e6 = 元 / 每百万 token。
+ *
+ *    注意：这是「聚合平台在售价」口径，与官方直连价可能略有差异。
+ *    数据表里 priceSrc 本就把 OpenRouter 列为来源之一，此处沿用该口径。
+ * ============================================================ */
+const openrouter = {
+  name: 'OpenRouter',
+  type: 'api',
+  apiBase: 'https://openrouter.ai/api/v1',
+  models: [],
+  fetch: async function() {
+    const res = await AX.get(this.apiBase + '/models', {
+      headers: { Accept: 'application/json' },
+      timeout: 30000,
+    });
+
+    const list = (res.data && res.data.data) || [];
+    if (!list.length) {
+      console.log('  ℹ API 未返回模型列表');
+      return null;
+    }
+
+    const models = {};
+    let withPrice = 0;
+    let skippedFree = 0;
+
+    for (const m of list) {
+      const p = m.pricing || {};
+      const pin = num(p.prompt);
+      const pout = num(p.completion);
+
+      // 跳过免费/未定价（价格为 0 或缺失），免得把 ¥0 写进价格表
+      if (pin === null || pout === null || pin <= 0 || pout <= 0) { skippedFree++; continue; }
+      withPrice++;
+
+      // id 形如 "~deepseek/deepseek-pro-latest"：先去 ~ 标记，再剥厂商前缀。
+      // 前缀必须剥掉，否则永远匹配不上总表里的短名。
+      let id = String(m.id || '').replace(/^~/, '').trim();
+      if (id.includes('/')) id = id.slice(id.lastIndexOf('/') + 1);
+      if (!id) continue;
+
+      models[id] = {
+        input: pin * FX * 1e6,
+        output: pout * FX * 1e6,
+      };
+    }
+
+    if (!withPrice) {
+      console.log(`  ⚠ 没有可用价格（共 ${list.length} 个模型）`);
+      return null;
+    }
+
+    const sample = Object.entries(models).slice(0, 3)
+      .map(([k, v]) => `${k}=¥${v.input.toFixed(2)}/¥${v.output.toFixed(2)}`).join('  ');
+    console.log(`  ℹ ${list.length} 个模型，${withPrice} 个含有效价格（跳过免费/未定价 ${skippedFree} 个）`);
+    console.log(`  ℹ 样例：${sample}`);
+    return models;
+  },
+};
+
+/* ============================================================
+ * 1. SiliconFlow（硅基流动）— 有公开 API，但接口不返回价格
+ *    实测 /v1/models 只返回 id/object/created/owned_by，无价格字段。
+ *    需配 SILICONFLOW_API_KEY 才能调用，但调到了也拿不到价格，
+ *    因此该源目前无法用于抓价（保留代码备将来接口增强）。
  * ============================================================ */
 const siliconflow = {
   name: '硅基流动',
@@ -400,7 +474,9 @@ const glm = {
 /* ============================================================
  * 所有数据源列表
  * ============================================================ */
+// 顺序即优先级：同一模型同一字段被多个源给出不同值时，保留靠前那个
 const SOURCES = [
+  openrouter,          // 覆盖面最广、自带价格，放最前
   siliconflow, openai, anthropic, google, deepseek,
   bailian, tencentCloud, volcengine, qianfan, xai, kimi, glm,
 ];

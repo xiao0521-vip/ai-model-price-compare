@@ -151,8 +151,33 @@ async function main() {
     }
   }
 
+  // 2.5) 去重：同一模型同一字段若被多个源给出不同值，只保留优先级最高的（SOURCES 顺序即优先级）
+  const seenField = new Map();
+  const deduped = [];
+  const conflicts = [];
+  for (const c of changes) {
+    const k = c.model + '|' + c.field;
+    if (seenField.has(k)) {
+      const kept = seenField.get(k);
+      conflicts.push(
+        `[${c.model}] ${c.field}：采用 ${kept.source}(¥${kept.newVal})，忽略 ${c.source}(¥${c.newVal})`
+      );
+      continue;
+    }
+    seenField.set(k, c);
+    deduped.push(c);
+  }
+  changes.length = 0;
+  changes.push(...deduped);
+
+  // 重新口径化「更新款数」= 去重后涉及价格的模型数
+  priceUpdateCount = new Set(
+    changes.filter(c => c.field !== 'updated').map(c => c.model)
+  ).size;
+
   // 3) 为有变更的模型补上 updated 字段（记录本次更新时间）
   for (const short of changedModels) {
+    if (!changes.some(c => c.model === short)) continue;   // 变更被去重掉的不算
     changes.push({ model: short, field: 'updated', newVal: TODAY, oldVal: '', source: 'auto' });
   }
 
@@ -195,6 +220,13 @@ async function main() {
     console.log('');
     console.log(`⚠ ${softWarns.length} 处价格波动较大（已照常更新，请留意是否真实降价）：`);
     for (const w of softWarns.slice(0, 20)) console.log(`  - ${w}`);
+  }
+
+  if (conflicts.length) {
+    console.log('');
+    console.log(`ℹ ${conflicts.length} 处多源冲突（按 SOURCES 顺序取优先级最高者）：`);
+    for (const c of conflicts.slice(0, 20)) console.log(`  - ${c}`);
+    if (conflicts.length > 20) console.log(`  ... 其余 ${conflicts.length - 20} 条已省略`);
   }
 
   if (failedSources.length) {

@@ -260,9 +260,16 @@ function isNoiseName(raw) {
  *     现在只允许：
  *       a) 精确匹配（规范化大小写与空白后）
  *       b) 别名表
- *       c) 词元子集：源名拆词后，每个词都要能在目标名里找到
- *     （曾用「前缀包含」，但它两头不讨好：既匹配不上 "LongCat 2.0"→"美团 LongCat 2.0"，
- *       又会让 "claude sonnet 4" 串味到 "Claude Sonnet 4.6"。）
+ *       c) 核心词元完全相等（忽略中文厂商词 / latest·preview·chat 等修饰 / 日期后缀）
+ *
+ *     演进史（三次都被真实数据打回来，规则才收紧到现在这样）：
+ *       ① 双向 includes  → "2.0" 命中 "美团 LongCat 2.0"，把 ¥7.1 写成输出价
+ *       ② 前缀包含       → 既匹配不上 "LongCat 2.0"→"美团 LongCat 2.0"，
+ *                          又让 "claude sonnet 4" 串味到 "Claude Sonnet 4.6"
+ *       ③ 词元子集       → GPT-5.6 Luna 被 "gpt-5.6-luna-pro:batch" 命中（-50% 是 batch 折扣）
+ *                          GPT-5.5 被 "gpt-5.5-pro:batch" 命中（+200%），o3 被 "o3-mini-high" 命中
+ *       ⇒ 只要允许「一方包含另一方」，变体后缀（-pro / -mini / :batch / -vision-exp）
+ *         就一定会污染基础款。故最终要求核心词元【完全相等】。
  *     最后仍由调用方保证「唯一命中」，宁可漏更新也不可配错模型。
  * ============================================================ */
 function matchModel(sourceName, modelShort, modelName) {
@@ -287,31 +294,54 @@ function matchModel(sourceName, modelShort, modelName) {
   };
   if (ALIAS[s] === short || ALIAS[short] === s) return true;
 
-  // c) 词元子集匹配：源名拆成词后，每个词都必须能在目标名里找到。
-  //    比前缀匹配更准 —— "claude sonnet 4" 的词 "4" 不在 "claude sonnet 4.6" 里，
-  //    所以不会串味到 4.6；而 "LongCat 2.0" 的两个词都在 "美团 LongCat 2.0" 里，能正常命中。
-  if (isTokenSubset(s, short) || isTokenSubset(s, name)) return true;
-  if (isTokenSubset(short, s) || isTokenSubset(name, s)) return true;
+  // c) 核心词元必须「完全相等」（忽略厂商词与版本/日期类修饰）
+  //    这是被真实数据打出来的规则：OpenRouter 的 id 大量带变体后缀
+  //    （gpt-5.6-luna-pro:batch / o3-mini-high / deepseek-v4-flash-vision-exp），
+  //    只要允许「一方包含另一方」，这些变体就会命中基础款，写出完全错误的价格。
+  if (sameCore(s, short) || sameCore(s, name)) return true;
 
   return false;
 }
 
-/** 拆分为规范化词元 */
+/** 拆分为规范化词元
+ *  连字符/下划线/斜杠一律视作分隔符：这样 "claude-sonnet-4"（OpenRouter 风格）
+ *  与 "Claude Sonnet 4"（本表风格）会得到相同的词元集合。
+ *  注意不要拆小数点——"9.9" 必须保持为一个词元。 */
 function toTokens(v) {
   return String(v == null ? '' : v)
     .toLowerCase()
-    .replace(/[\s_]+/g, ' ')
+    .replace(/[\s_\-/]+/g, ' ')
     .trim()
     .split(' ')
     .filter(Boolean);
 }
 
-/** a 的词元是否全部出现在 b 中（a ⊆ b） */
-function isTokenSubset(a, b) {
-  const A = toTokens(a);
-  const B = toTokens(b);
-  if (!A.length || !B.length) return false;
-  return A.every(t => B.includes(t));
+/* 匹配时可忽略的词元：
+ *   - 中文厂商词（美团 / 千问 / 智谱 / 月之暗面 / 混元 / 豆包…）
+ *     本表的 short 会带中文厂商名，而源侧（OpenRouter 等）剥掉前缀后没有，故双侧都忽略。
+ *   - 版本/上架状态类修饰：latest / preview / chat / instruct / stable…
+ *   - 纯 3~4 位数字（日期后缀，如 qwen3.8-max-0902 的 0902）
+ * 注意：pro / mini / max / high / vision / exp / batch / flash / lite 等
+ *       一律【不】忽略 —— 它们代表不同档位，忽略即误配。 */
+const HARMLESS_TOKENS = new Set(['latest', 'preview', 'chat', 'instruct', 'it', 'stable', 'v1', 'v2']);
+const CJK_ONLY_RE = /^[\u4e00-\u9fa5]+$/;
+const DATE_TOKEN_RE = /^\d{3,4}$/;
+
+function coreTokens(v) {
+  return toTokens(v).filter(t => {
+    if (CJK_ONLY_RE.test(t)) return false;
+    if (HARMLESS_TOKENS.has(t)) return false;
+    if (DATE_TOKEN_RE.test(t)) return false;
+    return true;
+  });
+}
+
+/** 核心词元集合是否完全一致（排序后逐一相等，且非空） */
+function sameCore(a, b) {
+  const A = coreTokens(a).sort();
+  const B = coreTokens(b).sort();
+  if (!A.length || A.length !== B.length) return false;
+  return A.every((t, i) => t === B[i]);
 }
 
 module.exports = {
