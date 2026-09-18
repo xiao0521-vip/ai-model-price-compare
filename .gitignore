@@ -1,2 +1,8 @@
-
+# 依赖目录（Cloudflare Pages / GitHub Actions 自行 npm ci 安装）
 node_modules/
+
+# 本地开发与测试脚本，不进仓库、不进部署包
+_dev/
+
+# 本地打包产物
+*.zip

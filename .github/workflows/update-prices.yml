@@ -3,14 +3,26 @@
 # ============================================================
 # 触发方式：
 #   1. 定时：工作日 08:00 UTC (北京 16:00) 自动运行
-#   2. 手动：GitHub Actions → Update prices → Run workflow
+#   2. 手动：Actions → Daily Price Update → Run workflow
 #
-# 需要配置的 GitHub Secrets：
+# 工作方式（v2：直接提交，不再走 PR）：
+#   checkout → npm ci → 抓价并修补 data.js → 有变更才 commit+push 到 main
+#   push 后 Cloudflare Pages 的 Git 集成会自动重新部署。
+#
+# 为什么不用 PR：
+#   用 peter-evans/create-pull-request 需要在
+#   Settings → Actions → General → Workflow permissions 里开启
+#   "Allow GitHub Actions to create and approve pull requests"，
+#   而且每天都要人工点一次合并，做不到「全自动」。
+#   直接 push 到 main 无需额外授权，也无需人工介入。
+#
+# 可选 Secrets：
+#   SILICONFLOW_API_KEY  - 硅基流动 API 密钥（推荐，有官方模型列表接口）
 #   OPENAI_API_KEY       - OpenAI API 密钥（可选，仅用于校验模型列表）
 #   ANTHROPIC_API_KEY    - Anthropic API 密钥（可选）
-#   SILICONFLOW_API_KEY  - 硅基流动 API 密钥（推荐，有官方模型列表接口）
-#
-# 无需 API Key 的平台通过 HTML 爬虫抓取定价页面。
+#   CF_DEPLOY_HOOK       - Cloudflare Pages Deploy Hook 完整 URL
+#                          （可选；配了就在推送成功后主动触发一次构建，
+#                            不配则依赖 Pages 的 Git 集成自动构建）
 # ============================================================
 name: Daily Price Update
 
@@ -20,58 +32,91 @@ on:
     - cron: '0 8 * * 1-5'
   workflow_dispatch:
 
+# 同一时间只允许一个更新任务，避免并发写冲突
+concurrency:
+  group: price-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
 jobs:
   update-prices:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-      pull-requests: write
+    timeout-minutes: 15
+
+    env:
+      CF_DEPLOY_HOOK: ${{ secrets.CF_DEPLOY_HOOK }}
 
     steps:
-      # 1) 拉取代码
+      # 1) 拉取代码（需要完整历史才能正常 push）
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
+          persist-credentials: true
 
       # 2) 安装 Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       # 3) 安装依赖
       - name: Install dependencies
         run: npm ci
 
-      # 4) 执行价格抓取 + 更新 data.js
+      # 4) 执行价格抓取 + 修补 data.js + 同步 deploy/data.js
       - name: Fetch & update prices
-        run: node scripts/fetch-prices.js
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+        run: node scripts/fetch-prices.js
 
-      # 5) 如果有变更则创建 PR（无变更则跳过）
-      - name: Create Pull Request
-        if: success()
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: auto-update-prices
-          commit-message: "chore: update model prices (run #${{ github.run_number }})"
-          title: "📊 Auto-update: model prices"
-          body: |
-            自动抓取各平台最新模型价格并更新 data.js。
+      # 5) 数据体检：字段完整性 + 价格异常波动，不合格就中止，绝不推脏数据
+      - name: Verify data.js
+        run: node scripts/verify-data.js
 
-            **运行信息**
-            - 触发：${{ github.event_name }}
-            - 运行编号：${{ github.run_number }}
-            - 时间：${{ github.run_at }}
+      # 6) 打印改动概览（无改动时为空）
+      - name: Show diff
+        run: git --no-pager diff --stat
 
-            ---
+      # 7) 有变更才提交并推送；无变更直接跳过
+      - name: Commit & push
+        id: commit
+        run: |
+          git config user.name  "price-bot"
+          git config user.email "price-bot@users.noreply.github.com"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "✅ 价格无变化，跳过提交"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "chore(prices): auto-update $(date -u '+%Y-%m-%d')"
+          git push origin "HEAD:${{ github.ref_name }}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
 
-            查看下方 diff 确认价格变更是否合理。合并后 Cloudflare Pages 将自动部署。
-          labels: "auto-update,prices"
+      # 8) 可选：主动触发 Cloudflare Pages 构建
+      - name: Trigger Cloudflare Pages deploy
+        if: env.CF_DEPLOY_HOOK != ''
+        continue-on-error: true
+        run: curl -fsS -X POST "$CF_DEPLOY_HOOK"
+
+      # 9) 运行摘要（在工作流页面顶部可见）
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## 📊 价格自动更新"
+            echo ""
+            echo "| 项目 | 值 |"
+            echo "|---|---|"
+            echo "| 触发方式 | \`${{ github.event_name }}\` |"
+            echo "| 运行编号 | #${{ github.run_number }} |"
+            echo "| 执行时间 | $(date -u '+%Y-%m-%d %H:%M UTC') |"
+            echo "| 是否有变更 | ${{ steps.commit.outputs.changed || '无变更' }} |"
+            echo "| Deploy Hook | ${{ env.CF_DEPLOY_HOOK != '' && '已配置' || '未配置（依赖 Git 集成自动构建）' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
