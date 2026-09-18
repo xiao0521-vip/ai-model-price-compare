@@ -42,30 +42,84 @@ async function fetchHtml(url) {
   return res.data;
 }
 
+/** 安全取数：价格可能是字符串，取不到返回 null */
+function num(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = parseFloat(v);
+  return isFinite(n) ? n : null;
+}
+
+/** 单位自适应：数值若明显是「每 token」口径（正数且 < 0.01），按 1e6 折算成「每百万」 */
+function toPerMillion(v) {
+  if (v === null) return null;
+  return (v > 0 && v < 0.01) ? v * 1e6 : v;
+}
+
+/** 从对象里按多个候选键名取第一个能拿到的值（应对各平台字段命名差异） */
+function pick(obj, keys) {
+  for (const k of keys) {
+    const v = k.split('.').reduce((o, part) => (o == null ? o : o[part]), obj);
+    if (v !== null && v !== undefined && v !== '') return v;
+  }
+  return null;
+}
+
 /* ============================================================
  * 1. SiliconFlow（硅基流动）— 有公开 API
  * ============================================================ */
 const siliconflow = {
   name: '硅基流动',
   type: 'api',
+  // ⚠️ 域名坑：api.siliconflow.io 不存在（2026-09-19 实测 DNS ENOTFOUND）。
+  //    正确域名：国内 api.siliconflow.cn / 国际 api.siliconflow.com（均为 HTTP 401 需鉴权）。
+  apiBase: 'https://api.siliconflow.cn/v1',
   models: ['DeepSeek-V4-Flash', 'DeepSeek-V3.2', 'GLM-5.2', 'Kimi-K2.5', 'MiniMax-M2.7', '混元 Hy3 Preview'],
   fetch: async function() {
     const key = process.env.SILICONFLOW_API_KEY;
     if (!key) return null;
-    const res = await AX.get('https://api.siliconflow.io/v1/models', {
-      headers: { Authorization: `Bearer ${key}` },
-      timeout: 15000,
+
+    const res = await AX.get(this.apiBase + '/models', {
+      headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
+      timeout: 20000,
     });
-    const models = {};
-    for (const m of res.data.data) {
-      if (!m.input_price || !m.output_price) continue;
-      // API 返回的就是「元 / 每百万 token」，直接使用，不要再乘任何系数。
-      // 若实际单位不是这个，judgePrice 的区间检查会把它拦下来（宁可漏更新，不可写错价）。
-      models[m.id] = {
-        input: m.input_price,
-        output: m.output_price,
-      };
+
+    const list = (res.data && res.data.data) || [];
+    if (!list.length) {
+      console.log('  ℹ API 未返回模型列表');
+      return null;
     }
+
+    // 把字段结构打进日志：万一接口改名/加字段，看日志就知道该怎么调
+    console.log(`  ℹ API 返回 ${list.length} 个模型，字段：${Object.keys(list[0]).join(', ')}`);
+
+    const models = {};
+    let withPrice = 0;
+    for (const m of list) {
+      const input = toPerMillion(num(pick(m, [
+        'input_price', 'inputPrice', 'pricing.input', 'price.input', 'input_price_per_1m',
+      ])));
+      const output = toPerMillion(num(pick(m, [
+        'output_price', 'outputPrice', 'pricing.output', 'price.output', 'output_price_per_1m',
+      ])));
+      if (input === null || output === null) continue;
+      withPrice++;
+
+      // 硅基流动的 ID 形如 "deepseek-ai/DeepSeek-V3.2"、"Pro/deepseek-ai/DeepSeek-V3"，
+      // 总表里记的是不带前缀的短名，所以剥掉最后一段之前的所有内容再作为键。
+      const id = String(m.id || '').trim();
+      const key = id.includes('/') ? id.slice(id.lastIndexOf('/') + 1) : id;
+      if (key) models[key] = { input, output };
+    }
+
+    if (!withPrice) {
+      console.log('  ⚠ API 返回的模型不含价格字段 —— 这个接口无法提供价格，需要改为抓定价页');
+      return null;
+    }
+
+    // 打几条样例值，方便确认单位口径（元/百万 还是 元/token）
+    const sample = Object.entries(models).slice(0, 3)
+      .map(([k, v]) => `${k}=¥${v.input}/¥${v.output}`).join('  ');
+    console.log(`  ℹ ${withPrice} 个模型带价格字段，样例：${sample}`);
     return models;
   },
 };
