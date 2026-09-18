@@ -228,9 +228,90 @@ function summarizeChanges(changes) {
     const pct = o ? (((n - o) / o) * 100).toFixed(1) : 'N/A';
     const label = c.field === 'inputPm' ? '输入' : '输出';
     const sign = (o && n > o) ? '+' : '';
-    lines.push(`  ${arrow} ${c.model} ${label}: ¥${o} → ¥${n} (${sign}${pct}%) [${c.source}]`);
+    // 打印源侧原始键名，出问题能一眼看出是哪个源、匹配到了什么名字
+    const from = c.matchedKey ? ` ← 源名 "${c.matchedKey}"` : '';
+    lines.push(`  ${arrow} ${c.model} ${label}: ¥${o} → ¥${n} (${sign}${pct}%) [${c.source}${from}]`);
   }
   return lines.join('\n');
+}
+
+/* ============================================================
+ * 11. 判断源侧返回的「模型名」是否是噪声（表头 / 纯数字 / 过短）
+ * ============================================================ */
+function isNoiseName(raw) {
+  const s = String(raw == null ? '' : raw).toLowerCase().replace(/[\s_]+/g, ' ').trim();
+
+  if (!s) return true;
+  if (s.length < 4) return true;                 // "2.0"、"G 4" 这类碎片
+  if (/^[\d.\s\-_/]+$/.test(s)) return true;      // 纯数字，如 "2.0"、"0.5"、"3.1"
+  if (/^(模型|名称|价格|单价|输入|输出|计费|单位|说明|备注|合计)$/.test(s)) return true;
+  if (/^(model|models?|name|names?|price|pricing|input|output|token|tokens?|per|unit|total|free|paid|tier|plan|context|rpm|tpm)s?$/i.test(s)) return true;
+  if (/^(and|the|or|for|is|are|at|to|of|with| priced at )/.test(s)) return true;  // 正文片段
+
+  return false;
+}
+
+/* ============================================================
+ * 12. 源侧模型名 → data.js 条目的匹配
+ *
+ *     ⚠️ 事故教训：旧的「双向 includes」过于宽松 —— 源返回 "2.0" 时，
+ *        "美团 longcat 2.0".includes("2.0") 为真，于是把 ¥7.1（=1 美元整）
+ *        写进了 LongCat 2.0 的 outputPm。
+ *     现在只允许：
+ *       a) 精确匹配（规范化大小写与空白后）
+ *       b) 别名表
+ *       c) 词元子集：源名拆词后，每个词都要能在目标名里找到
+ *     （曾用「前缀包含」，但它两头不讨好：既匹配不上 "LongCat 2.0"→"美团 LongCat 2.0"，
+ *       又会让 "claude sonnet 4" 串味到 "Claude Sonnet 4.6"。）
+ *     最后仍由调用方保证「唯一命中」，宁可漏更新也不可配错模型。
+ * ============================================================ */
+function matchModel(sourceName, modelShort, modelName) {
+  const norm = (v) => String(v == null ? '' : v).toLowerCase().replace(/[\s_]+/g, ' ').trim();
+  const s = norm(sourceName);
+  const short = norm(modelShort);
+  const name = norm(modelName);
+
+  if (isNoiseName(s)) return false;
+  if (!short && !name) return false;
+
+  // a) 精确匹配
+  if (s === short || s === name) return true;
+
+  // b) 特殊映射表（处理命名不一致）
+  const ALIAS = {
+    'gpt-5.5': 'gpt-5.5', 'gpt-5.5-pro': 'gpt-5.5 pro',
+    'claude-sonnet-4': 'claude sonnet 4',
+    'deepseek-v4-flash': 'deepseek-v4-flash',
+    'deepseek-v3.2': 'deepseek-v3.2',
+    'gemini-3-pro': 'gemini 3 pro',
+  };
+  if (ALIAS[s] === short || ALIAS[short] === s) return true;
+
+  // c) 词元子集匹配：源名拆成词后，每个词都必须能在目标名里找到。
+  //    比前缀匹配更准 —— "claude sonnet 4" 的词 "4" 不在 "claude sonnet 4.6" 里，
+  //    所以不会串味到 4.6；而 "LongCat 2.0" 的两个词都在 "美团 LongCat 2.0" 里，能正常命中。
+  if (isTokenSubset(s, short) || isTokenSubset(s, name)) return true;
+  if (isTokenSubset(short, s) || isTokenSubset(name, s)) return true;
+
+  return false;
+}
+
+/** 拆分为规范化词元 */
+function toTokens(v) {
+  return String(v == null ? '' : v)
+    .toLowerCase()
+    .replace(/[\s_]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+}
+
+/** a 的词元是否全部出现在 b 中（a ⊆ b） */
+function isTokenSubset(a, b) {
+  const A = toTokens(a);
+  const B = toTokens(b);
+  if (!A.length || !B.length) return false;
+  return A.every(t => B.includes(t));
 }
 
 module.exports = {
@@ -245,4 +326,6 @@ module.exports = {
   judgePrice,
   priceChanged,
   summarizeChanges,
+  isNoiseName,
+  matchModel,
 };

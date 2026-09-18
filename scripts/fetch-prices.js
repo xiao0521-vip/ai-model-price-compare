@@ -21,7 +21,8 @@ const fs = require('fs');
 const path = require('path');
 const { SOURCES } = require('./config');
 const {
-  SANITY, parseDataJs, patchDataJs, patchDate, judgePrice, priceChanged, summarizeChanges,
+  SANITY, parseDataJs, patchDataJs, patchDate, judgePrice, priceChanged,
+  summarizeChanges, matchModel,
 } = require('./lib');
 
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -35,29 +36,8 @@ const TODAY = new Date().toISOString().slice(0, 10);
  * 工具函数
  * ============================================================ */
 
-/** 模型名称匹配：将源返回的模型名映射到 data.js 中的 short 字段 */
-function matchModel(sourceName, modelShort, modelName) {
-  const s = String(sourceName).toLowerCase().trim();
-  const short = (modelShort || '').toLowerCase().trim();
-  const name = (modelName || '').toLowerCase().trim();
-
-  // 精确匹配
-  if (s === short || s === name) return true;
-
-  // 包含匹配（处理 "Claude Sonnet 4" vs "Claude Sonnet 4" 等情况）
-  if (short.includes(s) || s.includes(short)) return true;
-  if (name.includes(s) || s.includes(name)) return true;
-
-  // 特殊映射表（处理命名不一致）
-  const ALIAS = {
-    'gpt-5.5': 'gpt-5.5', 'gpt-5.5-pro': 'gpt-5.5 pro',
-    'claude-sonnet-4': 'claude sonnet 4',
-    'deepseek-v4-flash': 'deepseek-v4-flash',
-    'deepseek-v3.2': 'deepseek-v3.2',
-    'gemini-3-pro': 'gemini 3 pro',
-  };
-  return ALIAS[s] === short || ALIAS[short] === s;
-}
+/* matchModel / isNoiseName 已移入 lib.js（第 11、12 节），便于单测。
+ * 严格前缀匹配 + 噪声过滤，杜绝 "2.0" 命中 "美团 LongCat 2.0" 这类误配。 */
 
 /** 根据模型的 vendorTag 找到对应的数据源 */
 function findSource(model) {
@@ -86,6 +66,7 @@ async function main() {
   const changes = [];
   const changedModels = new Set();
   const unmatched = [];
+  const ambiguous = [];    // 源名同时命中多款模型，判为歧义并丢弃
   const failedSources = [];
   const suspects = [];    // 被判定为单位/解析错误而丢弃的价格
   const softWarns = [];   // 波动较大但照常更新的价格
@@ -102,13 +83,22 @@ async function main() {
 
       let sourceUpdates = 0;
       for (const [sourceModelName, priceInfo] of Object.entries(result)) {
-        // 在 MODELS 中找到匹配的模型
-        const model = MODELS.find(m => matchModel(sourceModelName, m.short, m.name));
-        if (!model) {
-          // 未匹配到模型，记录（可能是新模型，需人工确认后补进总表）
-          unmatched.push(`${sourceModelName}  ←  ${source.name}`);
+        // 在 MODELS 中定位模型：要求「唯一命中」。
+        // 宁可漏更新，也不可把价格写进配错的模型。
+        const matches = MODELS.filter(m => matchModel(sourceModelName, m.short, m.name));
+        if (matches.length !== 1) {
+          if (matches.length > 1) {
+            ambiguous.push(
+              `"${sourceModelName}"（${source.name}）同时命中 ${matches.length} 款：` +
+              matches.map(m => m.short).join(' / ')
+            );
+          } else {
+            // 未匹配到模型，记录（可能是新模型，需人工确认后补进总表）
+            unmatched.push(`"${sourceModelName}"  ←  ${source.name}`);
+          }
           continue;
         }
+        const model = matches[0];
 
         const candidates = [
           { field: 'inputPm', oldVal: model.inputPm, raw: priceInfo.input },
@@ -141,6 +131,7 @@ async function main() {
             oldVal: c.oldVal,
             newVal,
             source: source.name,
+            matchedKey: String(sourceModelName),   // 留痕：出问题时能追到源侧原始名字
           });
           changed = true;
         }
@@ -175,6 +166,14 @@ async function main() {
     console.log(`ℹ ${unmatched.length} 个源侧模型名未匹配到总表条目（可能是新模型，需人工确认后补进总表）：`);
     for (const u of unmatched.slice(0, 30)) console.log(`  - ${u}`);
     if (unmatched.length > 30) console.log(`  ... 其余 ${unmatched.length - 30} 条已省略`);
+  }
+
+  if (ambiguous.length) {
+    console.log('');
+    console.log(`⚠ ${ambiguous.length} 个源名同时命中多款模型，为避免配错型号已全部丢弃：`);
+    for (const a of ambiguous.slice(0, 20)) console.log(`  - ${a}`);
+    if (ambiguous.length > 20) console.log(`  ... 其余 ${ambiguous.length - 20} 条已省略`);
+    console.log('  ℹ 这是刻意的设计：宁可漏更新，不可把价格写进配错的模型。');
   }
 
   if (suspects.length) {
