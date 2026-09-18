@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const { SOURCES } = require('./config');
 const {
-  parseDataJs, patchDataJs, patchDate, priceChanged, summarizeChanges,
+  SANITY, parseDataJs, patchDataJs, patchDate, judgePrice, priceChanged, summarizeChanges,
 } = require('./lib');
 
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -87,6 +87,8 @@ async function main() {
   const changedModels = new Set();
   const unmatched = [];
   const failedSources = [];
+  const suspects = [];    // 被判定为单位/解析错误而丢弃的价格
+  const softWarns = [];   // 波动较大但照常更新的价格
   let priceUpdateCount = 0;
 
   for (const source of SOURCES) {
@@ -108,28 +110,36 @@ async function main() {
           continue;
         }
 
-        const newInput = priceInfo.input ? parseFloat(priceInfo.input) : null;
-        const newOutput = priceInfo.output ? parseFloat(priceInfo.output) : null;
+        const candidates = [
+          { field: 'inputPm', oldVal: model.inputPm, raw: priceInfo.input },
+          { field: 'outputPm', oldVal: model.outputPm, raw: priceInfo.output },
+        ];
         let changed = false;
 
-        // 注意：oldVal 必须在赋值前取，否则日志会显示 "¥1.42 → ¥1.42"
-        if (newInput && priceChanged(model.inputPm, newInput)) {
-          changes.push({
-            model: model.short,
-            field: 'inputPm',
-            oldVal: model.inputPm,
-            newVal: newInput,
-            source: source.name,
-          });
-          changed = true;
-        }
+        for (const c of candidates) {
+          if (!c.raw) continue;
+          const newVal = parseFloat(c.raw);
+          // 注意：oldVal 来自 data.js 现值（不是刚被改写过的值）
+          if (!priceChanged(c.oldVal, newVal)) continue;
 
-        if (newOutput && priceChanged(model.outputPm, newOutput)) {
+          // ★ 单位 / 解析错误在这里就被拦下，绝不进 data.js
+          const verdict = judgePrice(c.oldVal, newVal);
+          if (verdict.action === 'reject') {
+            suspects.push({
+              source: source.name, model: model.short, field: c.field,
+              oldVal: c.oldVal, newVal, reason: verdict.reason,
+            });
+            continue;
+          }
+          if (verdict.action === 'warn') {
+            softWarns.push(`[${source.name}] ${model.short} ${c.field}: ¥${c.oldVal} → ¥${newVal}（${verdict.reason}）`);
+          }
+
           changes.push({
             model: model.short,
-            field: 'outputPm',
-            oldVal: model.outputPm,
-            newVal: newOutput,
+            field: c.field,
+            oldVal: c.oldVal,
+            newVal,
             source: source.name,
           });
           changed = true;
@@ -165,6 +175,27 @@ async function main() {
     console.log(`ℹ ${unmatched.length} 个源侧模型名未匹配到总表条目（可能是新模型，需人工确认后补进总表）：`);
     for (const u of unmatched.slice(0, 30)) console.log(`  - ${u}`);
     if (unmatched.length > 30) console.log(`  ... 其余 ${unmatched.length - 30} 条已省略`);
+  }
+
+  if (suspects.length) {
+    console.log('');
+    console.log(`🚫 ${suspects.length} 处价格被判定为「单位换算 / 解析错误」，已丢弃未写入：`);
+    for (const s of suspects.slice(0, 20)) {
+      console.log(`  - [${s.source}] ${s.model} ${s.field}: ¥${s.oldVal} → ¥${s.newVal}（${s.reason}）`);
+    }
+    if (suspects.length > 20) console.log(`  ... 其余 ${suspects.length - 20} 条已省略`);
+    console.log(`  ℹ 这些源的解析器口径需要校准；校准前该源不会产生任何更新（宁可漏更新，不可写错价）。`);
+
+    // 同一个源只报一次，避免刷屏；GitHub 会把 ::warning:: 渲染成运行页上的告警标记
+    for (const src of [...new Set(suspects.map(s => s.source))]) {
+      console.log(`::warning title=解析器口径待校准::${src} 产出的价格疑似单位换算错误，本次已丢弃。请检查 scripts/config.js 中该源的 quotePer 设置。`);
+    }
+  }
+
+  if (softWarns.length) {
+    console.log('');
+    console.log(`⚠ ${softWarns.length} 处价格波动较大（已照常更新，请留意是否真实降价）：`);
+    for (const w of softWarns.slice(0, 20)) console.log(`  - ${w}`);
   }
 
   if (failedSources.length) {

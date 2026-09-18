@@ -12,8 +12,10 @@
  *   D. short 唯一性、updated 日期格式
  *   E. 订阅 / 套餐结构（plans 非空、内嵌 models 字段完整）
  *   F. 与 git HEAD 版本对比的价格异常波动检测
- *      - 单次波动 > 50%   → 警告
- *      - 单次波动 > 400%  → 判定为解析错误，直接失败
+ *      阈值取自 lib.js 的 SANITY（与 fetch-prices 的闸门同源，不会走偏）：
+ *      - 单次波动 > 50%    → 警告
+ *      - 单次波动 > 3 倍   → 判定为单位/解析错误，直接失败并阻止提交
+ *      - 价格超出 ¥0.01 ~ ¥20000/百万 → 同样直接失败
  *
  * 退出码：0 = 通过（可能有警告）；1 = 有错误，禁止提交
  * ============================================================
@@ -22,7 +24,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { parseDataJs } = require('./lib');
+const { parseDataJs, judgePrice, SANITY } = require('./lib');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_JS = path.join(ROOT, 'data.js');
@@ -34,8 +36,8 @@ const REQUIRED_MODEL_FIELDS = [
 ];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-const WARN_SWING = 0.5;   // 50%
-const FAIL_SWING = 4.0;   // 400%
+// 阈值统一取自 lib.js 的 SANITY，保证与 fetch-prices 的闸门完全一致
+// （曾出现两边阈值不一致：闸门放过 4~20 倍的变动，verify 却按 4 倍判失败）
 
 let errors = 0;
 let warns = 0;
@@ -87,14 +89,13 @@ MODELS.forEach((m, i) => {
     return;
   }
 
-  // 类型
-  if (typeof m.inputPm !== 'number' || !isFinite(m.inputPm) || m.inputPm <= 0) {
-    fail(`[${id}] inputPm 非正数：${m.inputPm}`);
-    return;
-  }
-  if (typeof m.outputPm !== 'number' || !isFinite(m.outputPm) || m.outputPm <= 0) {
-    fail(`[${id}] outputPm 非正数：${m.outputPm}`);
-    return;
+  // 价格必须为正数且落在合理区间内（阈值与 fetch-prices 闸门同源）
+  for (const f of ['inputPm', 'outputPm']) {
+    const v = judgePrice(0, m[f]);
+    if (typeof m[f] !== 'number' || v.action === 'reject') {
+      fail(`[${id}] ${f} 不合理：${m[f]}${v.reason ? `（${v.reason}）` : ''}`);
+      return;
+    }
   }
   if (typeof m.cnyOnly !== 'boolean') fail(`[${id}] cnyOnly 非布尔：${m.cnyOnly}`);
   if (!Array.isArray(m.tags) || !m.tags.length) fail(`[${id}] tags 为空`);
@@ -181,12 +182,12 @@ if (headSource) {
         const o = old[f], n = m[f];
         if (typeof o !== 'number' || !isFinite(o) || o <= 0) continue;
         compared++;
-        const ratio = Math.abs(n - o) / o;
-        if (ratio > FAIL_SWING) {
-          fail(`[${m.short}] ${f} 异常：¥${o} → ¥${n}（${(ratio * 100).toFixed(0)}%），疑似抓取解析错误`);
+        const verdict = judgePrice(o, n);
+        if (verdict.action === 'reject') {
+          fail(`[${m.short}] ${f}：¥${o} → ¥${n}，${verdict.reason}`);
           swingFail++;
-        } else if (ratio > WARN_SWING) {
-          warn(`[${m.short}] ${f} 波动较大：¥${o} → ¥${n}（${(ratio * 100).toFixed(0)}%），请人工确认`);
+        } else if (verdict.action === 'warn') {
+          warn(`[${m.short}] ${f}：¥${o} → ¥${n}，${verdict.reason}，请人工确认`);
           swingWarn++;
         }
       }

@@ -12,6 +12,15 @@
  *   1. 在本文件底部添加 source 配置
  *   2. 实现对应的 parse 函数（或复用通用 parseHtml 工具）
  *   3. 在 data.js 中确保 model.short 与这里 models 匹配
+ *
+ * ⚠️⚠️ 单位约定（踩过大坑，务必按此写）：
+ *   所有 fetch 函数的返回值必须是「人民币 / 每百万 token 」（数字或数字字符串）。
+ *   - 页面报价是「美元 / 每百万 token」→ parseHtmlPrices({ quotePer: 1e6 })
+ *   - 页面报价是「美元 / 每千 token」 → parseHtmlPrices({ quotePer: 1e3 })
+ *   - 页面报价已经是「人民币 / 每百万」→ 直接返回，勿再乘任何系数
+ *   2026-09-19 事故：旧参数 perUnit 是「乘数」，Google 解析器把
+ *   「每百万美元价 1.20」又乘了 1e6，Gemini 2.5 Pro 被写成 ¥8,529,940，
+ *   靠 verify-data 的异常检测才拦住。现已改成语义明确的 quotePer（除数）。
  * ============================================================
  */
 
@@ -50,9 +59,11 @@ const siliconflow = {
     const models = {};
     for (const m of res.data.data) {
       if (!m.input_price || !m.output_price) continue;
+      // API 返回的就是「元 / 每百万 token」，直接使用，不要再乘任何系数。
+      // 若实际单位不是这个，judgePrice 的区间检查会把它拦下来（宁可漏更新，不可写错价）。
       models[m.id] = {
-        input: m.input_price * 1e6,   // API 返回 元/百万，需确认
-        output: m.output_price * 1e6,
+        input: m.input_price,
+        output: m.output_price,
       };
     }
     return models;
@@ -103,7 +114,7 @@ const anthropic = {
     const models = parseHtmlPrices(html, {
       pattern: /([A-Za-z0-9 .-]+?)\s*[\$]\s*([\d.]+)\s*(?:\/|、)\s*[\$]\s*([\d.]+)/g,
       usdToCny: 7.1,
-      perUnit: 1e6,
+      quotePer: 1e6,   // 页面报价为「美元 / 每百万 token」
     });
     return models;
   },
@@ -122,7 +133,7 @@ const google = {
     const models = parseHtmlPrices(html, {
       pattern: /([A-Za-z0-9 .-]+?)\s*[\$]\s*([\d.]+)\s*\/\s*([\d.]+)/g,
       usdToCny: 7.1,
-      perUnit: 1e6,
+      quotePer: 1e6,   // 页面报价为「美元 / 每百万 token」
     });
     return models;
   },
@@ -274,7 +285,7 @@ const xai = {
     const models = parseHtmlPrices(html, {
       pattern: /([A-Za-z0-9 .-]+?)\s*[\$]\s*([\d.]+)\s*(?:\/|、)\s*[\$]\s*([\d.]+)/g,
       usdToCny: 7.1,
-      perUnit: 1e6,
+      quotePer: 1e6,   // 页面报价为「美元 / 每百万 token」
     });
     return models;
   },

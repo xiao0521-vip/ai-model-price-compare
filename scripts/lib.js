@@ -7,6 +7,17 @@ const AX = require('axios');
 const fs = require('fs');
 
 /* ============================================================
+ * 价格合理性阈值（fetch-prices 与 verify-data 共用，避免两边走偏）
+ *   单位统一为「人民币 / 每百万 token」
+ * ============================================================ */
+const SANITY = {
+  pmMin: 0.01,      // 低于此值几乎必是解析错位
+  pmMax: 20000,     // 高于此值几乎必是单位换算错误
+  warnDelta: 0.5,   // 与上次相差超过 50% → 警告
+  maxRatio: 4,      // 与上次相差超过 4 倍 → 判定为单位/解析错误，丢弃
+};
+
+/* ============================================================
  * 1. 从 HTML 中提取纯文本（去除标签）
  * ============================================================ */
 function extractText(html) {
@@ -21,12 +32,23 @@ function extractText(html) {
  * 2. 从 HTML 中通用解析价格表格
  *    配置项：
  *      pattern   - 正则，捕获组 [1]=模型名 [2]=输入价 [3]=输出价
- *      usdToCny  - USD→CNY 汇率（默认 7.1）
- *      perUnit   - 每单位换算系数（默认 1e6 = 每百万）
+ *      quotePer  - 【关键】页面报价的计价单位是「每多少 token」。
+ *                  页面写 "$1.20 / $6.76 per 1M tokens" → quotePer: 1e6
+ *                  页面写 "$0.0012 / $0.0068 per 1K tokens" → quotePer: 1e3
+ *                  统一换算为「元 / 每百万 token」输出。
+ *      usdToCny  - USD→CNY 汇率（默认 7.1）；isCny=true 时忽略
+ *      isCny     - 页面报价本身就是人民币（默认 false）
+ *
+ *    ⚠️ 历史坑：旧参数名叫 perUnit 且语义是「乘数」，导致把
+ *       「每百万美元价」又乘 1e6，Gemini 2.5 Pro 一度被写成 ¥8,529,940。
+ *       改成语义明确的 quotePer（除数）后不可能再犯。
  * ============================================================ */
 function parseHtmlPrices(html, opts = {}) {
-  const { pattern, usdToCny = 7.1, perUnit = 1e6 } = opts;
+  const { pattern, usdToCny = 7.1, quotePer = 1e6, isCny = false } = opts;
   if (!html || !pattern) return {};
+
+  // 报价 → 人民币/每百万 token 的换算系数
+  const scale = (1e6 / quotePer) * (isCny ? 1 : usdToCny);
 
   const models = {};
   const re = new RegExp(pattern.source, 'g');
@@ -39,8 +61,8 @@ function parseHtmlPrices(html, opts = {}) {
     // 跳过标题行
     if (/模型|model|名称|name|input|output|输入|输出/i.test(name)) continue;
     models[name] = {
-      input: (input * usdToCny * perUnit).toFixed(2),
-      output: (output * usdToCny * perUnit).toFixed(2),
+      input: (input * scale).toFixed(2),
+      output: (output * scale).toFixed(2),
     };
   }
   return models;
@@ -149,7 +171,40 @@ function patchDate(content, dateStr) {
 }
 
 /* ============================================================
- * 8. 比较两个价格值，判断是否需要更新（浮点误差容忍 0.01）
+ * 8. 价格合理性判定（fetch-prices 与 verify-data 共用同一套阈值）
+ *    返回 { action: 'accept' | 'warn' | 'reject', reason }
+ *    —— 单位/解析错误必须在这里就被拒绝，绝不能进 data.js。
+ * ============================================================ */
+function judgePrice(oldVal, newVal) {
+  const n = parseFloat(newVal);
+  if (!isFinite(n) || n <= 0) {
+    return { action: 'reject', reason: `非正数或非法数字（${newVal}）` };
+  }
+  if (n < SANITY.pmMin || n > SANITY.pmMax) {
+    return { action: 'reject', reason: `超出合理区间 ¥${SANITY.pmMin}~¥${SANITY.pmMax}/百万` };
+  }
+
+  const o = parseFloat(oldVal);
+  if (isFinite(o) && o > 0) {
+    const up = n / o;
+    const down = o / n;
+    if (up > SANITY.maxRatio) {
+      return { action: 'reject', reason: `较上次放大 ${Math.round(up).toLocaleString()} 倍，疑似单位换算错误` };
+    }
+    if (down > SANITY.maxRatio) {
+      return { action: 'reject', reason: `较上次缩小 ${Math.round(down).toLocaleString()} 倍，疑似单位换算错误` };
+    }
+    const delta = Math.abs(n - o) / o;
+    if (delta > SANITY.warnDelta) {
+      return { action: 'warn', reason: `较上次变动 ${(delta * 100).toFixed(0)}%` };
+    }
+  }
+
+  return { action: 'accept', reason: '' };
+}
+
+/* ============================================================
+ * 9. 比较两个价格值，判断是否需要更新（浮点误差容忍 0.01）
  * ============================================================ */
 function priceChanged(oldVal, newVal) {
   const o = parseFloat(oldVal);
@@ -159,7 +214,7 @@ function priceChanged(oldVal, newVal) {
 }
 
 /* ============================================================
- * 9. 生成变更摘要
+ * 10. 生成变更摘要
  * ============================================================ */
 function summarizeChanges(changes) {
   const priceChanges = changes.filter(c => c.field !== 'updated');
@@ -179,6 +234,7 @@ function summarizeChanges(changes) {
 }
 
 module.exports = {
+  SANITY,
   extractText,
   parseHtmlPrices,
   fetchWithRetry,
@@ -186,6 +242,7 @@ module.exports = {
   parseDataJs,
   patchDataJs,
   patchDate,
+  judgePrice,
   priceChanged,
   summarizeChanges,
 };
