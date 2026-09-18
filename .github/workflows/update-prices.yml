@@ -5,21 +5,21 @@
 #   1. 定时：工作日 08:00 UTC (北京 16:00) 自动运行
 #   2. 手动：Actions → Daily Price Update → Run workflow
 #
-# 工作方式（v2：直接提交，不再走 PR）：
-#   checkout → npm ci → 抓价并修补 data.js → 体检 → 有变更才 commit+push 到 main
+# 工作方式（v3：直接提交，不再走 PR）：
+#   checkout → 同步到最新 main → npm ci → 抓价 → 体检 → 有变更才 commit+push
 #   push 后 Cloudflare Pages 的 Git 集成会自动重新部署。
 #
-# 为什么不用 PR：
-#   用 peter-evans/create-pull-request 需要在
-#   Settings → Actions → General → Workflow permissions 里开启
-#   "Allow GitHub Actions to create and approve pull requests"，
-#   而且每天都要人工点一次合并，做不到「全自动」。
-#   直接 push 到 main 无需额外授权，也无需人工介入。
+# ⚠️ 为什么必须有「Sync to latest」这一步：
+#   workflow_dispatch 会把 github.sha 固定为「派发那一刻」的提交。若派发后
+#   main 又前进过（例如本地修完推上去），CI 就基于旧提交打包，commit 后
+#   push 会被拒：
+#       ! [rejected] HEAD -> main (non-fast-forward)
+#   2026-09-19 run #3 因此失败（抓价与体检都已通过，只差落地）。
+#   在 Checkout 之后强制 reset 到 origin/main，从根上消除该问题。
 #
 # ⚠️ 前置设置（否则 push 会 403）：
 #   Settings → Actions → General → Workflow permissions
 #   选 "Read and write permissions" 并 Save。
-#   （只勾 PR 那个开关是没用的，根权限必须是读写）
 #
 # 诊断设计：
 #   每个 run 步骤都把 stdout/stderr 同时写到 Step Summary，
@@ -29,9 +29,7 @@
 #   SILICONFLOW_API_KEY  - 硅基流动 API 密钥（推荐，有官方模型列表接口）
 #   OPENAI_API_KEY       - OpenAI API 密钥（可选，仅用于校验模型列表）
 #   ANTHROPIC_API_KEY    - Anthropic API 密钥（可选）
-#   CF_DEPLOY_HOOK       - Cloudflare Pages Deploy Hook 完整 URL
-#                          （可选；配了就在推送成功后主动触发一次构建，
-#                            不配则依赖 Pages 的 Git 集成自动构建）
+#   CF_DEPLOY_HOOK       - Cloudflare Pages Deploy Hook 完整 URL（可选）
 # ============================================================
 name: Daily Price Update
 
@@ -58,12 +56,27 @@ jobs:
       CF_DEPLOY_HOOK: ${{ secrets.CF_DEPLOY_HOOK }}
 
     steps:
-      # 1) 拉取代码（需要完整历史才能正常 push）
+      # 1) 拉取代码
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: true
+
+      # 1b) 强制同步到远程最新 main —— 消除「基于旧提交打包 → push 被拒」
+      - name: Sync to latest main
+        run: |
+          set +e
+          {
+            echo "同步前：$(git log --oneline -1)"
+            git fetch origin "${{ github.ref_name }}"
+            git reset --hard "origin/${{ github.ref_name }}"
+            echo "同步后：$(git log --oneline -1)"
+          } > /tmp/sync.log 2>&1
+          CODE=$?
+          cat /tmp/sync.log
+          { echo ""; echo "### 🔄 同步到最新 main"; echo '```'; cat /tmp/sync.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
 
       # 2) 安装 Node.js
       - name: Setup Node.js
@@ -114,11 +127,12 @@ jobs:
           cat /tmp/diff.log
           { echo ""; echo "### 📝 改动概览"; echo '```'; cat /tmp/diff.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
-      # 7) 有变更才提交并推送；无变更直接跳过
+      # 7) 有变更才提交并推送；推送被拒时自动 rebase 重试（兜住运行期间的竞态）
       - name: Commit & push
         id: commit
         run: |
           set +e
+          BRANCH="${{ github.ref_name }}"
           echo "changed=false" >> "$GITHUB_OUTPUT"
           {
             git config user.name  "price-bot"
@@ -127,9 +141,24 @@ jobs:
             if git diff --staged --quiet; then
               echo "✅ 价格无变化，跳过提交"
             else
-              git commit -m "chore(prices): auto-update $(date -u '+%Y-%m-%d')" &&
-              git push origin "HEAD:${{ github.ref_name }}" &&
-              { echo "changed=true" >> "$GITHUB_OUTPUT"; echo "✅ 已提交并推送到 ${{ github.ref_name }}"; }
+              if git commit -m "chore(prices): auto-update $(date -u '+%Y-%m-%d')"; then
+                PUSHED=0
+                for i in 1 2 3; do
+                  if git push origin "HEAD:$BRANCH"; then PUSHED=1; break; fi
+                  echo "⚠ 第 $i 次推送被拒（可能有并发提交），拉取远程最新后重试…"
+                  git pull --rebase --autostash origin "$BRANCH" || break
+                done
+                if [ "$PUSHED" = "1" ]; then
+                  echo "changed=true" >> "$GITHUB_OUTPUT"
+                  echo "✅ 已提交并推送到 $BRANCH"
+                else
+                  echo "❌ 推送失败。请确认 Settings → Actions → General → Workflow permissions 已选 Read and write permissions。"
+                  false
+                fi
+              else
+                echo "❌ 提交失败"
+                false
+              fi
             fi
           } > /tmp/commit.log 2>&1
           CODE=$?
