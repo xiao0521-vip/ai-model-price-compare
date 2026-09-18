@@ -737,7 +737,7 @@ var MODELS = [
 {
   name: "LongCat-2.0", short: "美团 LongCat 2.0", family: "LongCat",
   vendor: "Meituan", vendorZh: "美团", type: "性价比", billing: "per_token",
-  inputPm: 5.33, outputPm: 20.95, cnyOnly: false, context: "1.0M",
+  inputPm: 5.33, outputPm: 7.1, cnyOnly: false, context: "1.0M",
   tags: ["text","code","reasoning","longctx"],
   vendorTag: "硅基流动",
   priceSrc: "硅基流动在售价（$0.75/$2.95 折算）；2026-06-30 上线，最大输出 131K",
