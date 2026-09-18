@@ -6,7 +6,7 @@
 #   2. 手动：Actions → Daily Price Update → Run workflow
 #
 # 工作方式（v2：直接提交，不再走 PR）：
-#   checkout → npm ci → 抓价并修补 data.js → 有变更才 commit+push 到 main
+#   checkout → npm ci → 抓价并修补 data.js → 体检 → 有变更才 commit+push 到 main
 #   push 后 Cloudflare Pages 的 Git 集成会自动重新部署。
 #
 # 为什么不用 PR：
@@ -15,6 +15,15 @@
 #   "Allow GitHub Actions to create and approve pull requests"，
 #   而且每天都要人工点一次合并，做不到「全自动」。
 #   直接 push 到 main 无需额外授权，也无需人工介入。
+#
+# ⚠️ 前置设置（否则 push 会 403）：
+#   Settings → Actions → General → Workflow permissions
+#   选 "Read and write permissions" 并 Save。
+#   （只勾 PR 那个开关是没用的，根权限必须是读写）
+#
+# 诊断设计：
+#   每个 run 步骤都把 stdout/stderr 同时写到 Step Summary，
+#   打开 Actions 运行页的 Summary 标签即可看到全部日志，无需逐个展开。
 #
 # 可选 Secrets：
 #   SILICONFLOW_API_KEY  - 硅基流动 API 密钥（推荐，有官方模型列表接口）
@@ -65,7 +74,13 @@ jobs:
 
       # 3) 安装依赖
       - name: Install dependencies
-        run: npm ci
+        run: |
+          set +e
+          npm ci --no-audit --no-fund > /tmp/npm.log 2>&1
+          CODE=$?
+          tail -n 40 /tmp/npm.log
+          { echo ""; echo "### 📦 依赖安装"; echo '```'; tail -n 40 /tmp/npm.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
 
       # 4) 执行价格抓取 + 修补 data.js + 同步 deploy/data.js
       - name: Fetch & update prices
@@ -73,43 +88,74 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
-        run: node scripts/fetch-prices.js
+        run: |
+          set +e
+          node scripts/fetch-prices.js > /tmp/fetch.log 2>&1
+          CODE=$?
+          cat /tmp/fetch.log
+          { echo ""; echo "### 🔄 抓价输出"; echo '```'; tail -n 120 /tmp/fetch.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
 
       # 5) 数据体检：字段完整性 + 价格异常波动，不合格就中止，绝不推脏数据
       - name: Verify data.js
-        run: node scripts/verify-data.js
+        run: |
+          set +e
+          node scripts/verify-data.js > /tmp/verify.log 2>&1
+          CODE=$?
+          cat /tmp/verify.log
+          { echo ""; echo "### 🩺 数据体检"; echo '```'; cat /tmp/verify.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
 
       # 6) 打印改动概览（无改动时为空）
       - name: Show diff
-        run: git --no-pager diff --stat
+        run: |
+          set +e
+          git --no-pager diff --stat > /tmp/diff.log 2>&1
+          cat /tmp/diff.log
+          { echo ""; echo "### 📝 改动概览"; echo '```'; cat /tmp/diff.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       # 7) 有变更才提交并推送；无变更直接跳过
       - name: Commit & push
         id: commit
         run: |
-          git config user.name  "price-bot"
-          git config user.email "price-bot@users.noreply.github.com"
-          git add -A
-          if git diff --staged --quiet; then
-            echo "✅ 价格无变化，跳过提交"
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git commit -m "chore(prices): auto-update $(date -u '+%Y-%m-%d')"
-          git push origin "HEAD:${{ github.ref_name }}"
-          echo "changed=true" >> "$GITHUB_OUTPUT"
+          set +e
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          {
+            git config user.name  "price-bot"
+            git config user.email "price-bot@users.noreply.github.com"
+            git add -A
+            if git diff --staged --quiet; then
+              echo "✅ 价格无变化，跳过提交"
+            else
+              git commit -m "chore(prices): auto-update $(date -u '+%Y-%m-%d')" &&
+              git push origin "HEAD:${{ github.ref_name }}" &&
+              { echo "changed=true" >> "$GITHUB_OUTPUT"; echo "✅ 已提交并推送到 ${{ github.ref_name }}"; }
+            fi
+          } > /tmp/commit.log 2>&1
+          CODE=$?
+          cat /tmp/commit.log
+          { echo ""; echo "### 📤 提交与推送"; echo '```'; cat /tmp/commit.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
 
       # 8) 可选：主动触发 Cloudflare Pages 构建
       - name: Trigger Cloudflare Pages deploy
         if: env.CF_DEPLOY_HOOK != ''
         continue-on-error: true
-        run: curl -fsS -X POST "$CF_DEPLOY_HOOK"
+        run: |
+          set +e
+          curl -fsS -X POST "$CF_DEPLOY_HOOK" > /tmp/hook.log 2>&1
+          CODE=$?
+          cat /tmp/hook.log
+          { echo ""; echo "### 🚀 触发 Pages 构建"; echo '```'; cat /tmp/hook.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
 
       # 9) 运行摘要（在工作流页面顶部可见）
       - name: Summary
         if: always()
         run: |
           {
+            echo ""
+            echo "---"
             echo "## 📊 价格自动更新"
             echo ""
             echo "| 项目 | 值 |"
