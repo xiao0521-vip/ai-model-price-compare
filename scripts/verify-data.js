@@ -25,6 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { parseDataJs, judgePrice, SANITY } = require('./lib');
+const { FX: CONFIG_FX } = require('./config');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_JS = path.join(ROOT, 'data.js');
@@ -71,6 +72,9 @@ if (!META.updated || !DATE_RE.test(META.updated)) fail('META.updated 缺失或�
 else console.log(`  ✅ META.updated ${META.updated}`);
 if (typeof META.fx !== 'number' || META.fx <= 0) fail('META.fx 非法：' + META.fx);
 else console.log(`  ✅ META.fx ${META.fx}`);
+if (typeof META.fx === 'number' && Math.abs(META.fx - CONFIG_FX) > 0.001) {
+  warn(`META.fx（${META.fx}）与 config.js 的 FX（${CONFIG_FX}）不一致 —— 汇率只该有一处定义`);
+}
 
 /* ---------- B/C/D. 模型逐条校验 ---------- */
 console.log('');
@@ -95,6 +99,24 @@ MODELS.forEach((m, i) => {
     if (typeof m[f] !== 'number' || v.action === 'reject') {
       fail(`[${id}] ${f} 不合理：${m[f]}${v.reason ? `（${v.reason}）` : ''}`);
       return;
+    }
+  }
+
+  // 优惠价字段（可选）：给了就必须成套且合法；过期未恢复常规价的要警告
+  if (m.promoUntil !== undefined || m.regularPm !== undefined) {
+    if (!DATE_RE.test(String(m.promoUntil || ''))) {
+      fail(`[${id}] promoUntil 缺失或格式错误：${m.promoUntil}`);
+    }
+    if (judgePrice(0, m.regularPm).action === 'reject') {
+      fail(`[${id}] regularPm 不合理：${m.regularPm}`);
+    }
+    if (judgePrice(0, m.regularOutPm).action === 'reject') {
+      fail(`[${id}] regularOutPm 不合理：${m.regularOutPm}`);
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (DATE_RE.test(String(m.promoUntil || '')) && m.promoUntil < today &&
+        typeof m.regularPm === 'number' && m.inputPm < m.regularPm) {
+      warn(`[${id}] promoUntil ${m.promoUntil} 已过但仍显示优惠价 ¥${m.inputPm}（常规价 ¥${m.regularPm}）`);
     }
   }
   if (typeof m.cnyOnly !== 'boolean') fail(`[${id}] cnyOnly 非布尔：${m.cnyOnly}`);

@@ -1,48 +1,31 @@
 /**
  * 价格数据源配置
  * ============================================================
- * 每个 source 定义：
- *   name       - 源名称（对应 data.js 中的 vendorTag）
- *   type       - 'html'（爬虫抓取）| 'api'（JSON API）
- *   url        - 定价页 URL
- *   models     - 需要抓取价格的模型名列表（匹配 data.js 中的 short/name）
- *   parse      - 解析函数：接收 { html } 或 { json }，返回 { modelName: { input, output, context, tags, desc } }
+ * 单位约定（⚠️ 全项目唯一的换算出口，务必按此写）：
+ *   所有 fetch 函数的返回值必须是「人民币 / 每百万 token」。
+ *   - 结构化 API：拿到什么单位就显式换算成 元/每百万
+ *   - HTML 定价表：统一走 lib.parseModelPriceTable（自动识别 币种 + 每千/每百万）
+ *   - 绝不手写 ×1e6 之类系数（2026-09-19 曾因此把 Gemini 2.5 Pro 写成 ¥8,529,940）
  *
- * 添加新数据源步骤：
- *   1. 在本文件底部添加 source 配置
- *   2. 实现对应的 parse 函数（或复用通用 parseHtml 工具）
- *   3. 在 data.js 中确保 model.short 与这里 models 匹配
- *
- * ⚠️⚠️ 单位约定（踩过大坑，务必按此写）：
- *   所有 fetch 函数的返回值必须是「人民币 / 每百万 token 」（数字或数字字符串）。
- *   - 页面报价是「美元 / 每百万 token」→ parseHtmlPrices({ quotePer: 1e6 })
- *   - 页面报价是「美元 / 每千 token」 → parseHtmlPrices({ quotePer: 1e3 })
- *   - 页面报价已经是「人民币 / 每百万」→ 直接返回，勿再乘任何系数
- *   2026-09-19 事故：旧参数 perUnit 是「乘数」，Google 解析器把
- *   「每百万美元价 1.20」又乘了 1e6，Gemini 2.5 Pro 被写成 ¥8,529,940，
- *   靠 verify-data 的异常检测才拦住。现已改成语义明确的 quotePer（除数）。
+ * HTML 源统一用 tableSource() 工厂创建：
+ *   - 自动走带重试的抓取（网络抖动不再让整个源直接失败）
+ *   - 解析走 parseModelPriceTable（能识别中文名/千分位/币种/计价单位）
+ *   - 强制传 only 白名单：页面上的表头、页脚、无关数字进不了价格表
+ *   - 白名单按「词元集合相等」匹配（连字符与空格等价）
  * ============================================================
  */
 
 const AX = require('axios');
-const { parseHtmlPrices, extractText } = require('./lib');
+const {
+  parseModelPriceTable, parseHtmlPrices, fetchWithRetry, extractText, toTokens,
+} = require('./lib');
 
-// USD → CNY，与 data.js 的 META.fx 保持一致
+/** USD → CNY。⚠️ 全项目唯一定义处；verify-data 会校验它与 data.js META.fx 一致 */
 const FX = 7.1;
 
-/* ============================================================
- * 通用 HTML 价格解析器
- * ============================================================ */
+/** 带 2 次重试的 HTML 抓取（网络抖动不再让整个源直接失败） */
 async function fetchHtml(url) {
-  const res = await AX.get(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; PriceBot/1.0)',
-      'Accept': 'text/html,application/xhtml+xml',
-    },
-    timeout: 30000,
-    maxRedirects: 5,
-  });
-  return res.data;
+  return fetchWithRetry(url, 3, 2000);
 }
 
 /** 安全取数：价格可能是字符串，取不到返回 null */
@@ -68,17 +51,53 @@ function pick(obj, keys) {
 }
 
 /* ============================================================
+ * HTML 表格源工厂
+ * ============================================================ */
+function tableSource(def) {
+  return {
+    name: def.name,
+    type: 'html',
+    url: def.url,
+    models: def.models,
+    fetch: async function () {
+      const html = await fetchHtml(def.url);
+      const r = parseModelPriceTable(html, {
+        fx: FX,
+        only: def.models,                 // 白名单：只收能对上总表短名的行
+        log: (m) => console.log(m),
+      });
+
+      if (!Object.keys(r).length) {
+        // 兜底：表格解析不到时，再用旧的正则方案试一次（部分平台不是 <table> 排版）
+        const alt = parseHtmlPrices(html, {
+          pattern: /([\u4e00-\u9fa5A-Za-z0-9 .\/\-_()（）]+?)\s*[¥￥$]\s*([\d,]+(?:\.\d+)?)\s*(?:\/|每)\s*([\d,]+(?:\.\d+)?)/g,
+          usdToCny: FX,
+          quotePer: 1e6,
+        });
+        const picked = {};
+        for (const want of def.models) {
+          for (const k of Object.keys(alt)) {
+            if (toTokens(k).sort().join(' ') === toTokens(want).sort().join(' ')) {
+              picked[want] = alt[k];
+            }
+          }
+        }
+        if (!Object.keys(picked).length) {
+          console.log(`  ⚠ 页面既没有可用表格、正则兜底也没命中白名单（需人工校准该源）`);
+          return null;
+        }
+        return picked;
+      }
+      return r;
+    },
+  };
+}
+
+/* ============================================================
  * 0. OpenRouter — 公开模型列表接口，自带价格，无需密钥
- *
- *    这是覆盖面最广、也是唯一「立刻能跑通」的源：
- *    实测 446 个模型、416 个含有效价格，横跨 OpenAI / Anthropic /
- *    Google / DeepSeek / 通义 / 智谱 / Kimi / MiniMax / xAI / Llama 等。
- *
- *    字段：pricing.prompt / pricing.completion，单位是「美元 / 每 token」。
- *    换算：美元/token × FX × 1e6 = 元 / 每百万 token。
- *
+ *    实测 446 个模型、416 个含有效价格，覆盖面最广，是当前主力源。
+ *    pricing.prompt / pricing.completion 单位为「美元 / 每 token」。
  *    注意：这是「聚合平台在售价」口径，与官方直连价可能略有差异。
- *    数据表里 priceSrc 本就把 OpenRouter 列为来源之一，此处沿用该口径。
  * ============================================================ */
 const openrouter = {
   name: 'OpenRouter',
@@ -116,15 +135,14 @@ const openrouter = {
       withPrice++;
 
       // id 形如 "~deepseek/deepseek-pro-latest"：先去 ~ 标记，再剥厂商前缀。
-      // 前缀必须剥掉，否则永远匹配不上总表里的短名。
       let id = String(m.id || '').replace(/^~/, '').trim();
       if (id.includes('/')) id = id.slice(id.lastIndexOf('/') + 1);
       if (!id) continue;
       if (this.skip && this.skip.has(id)) { skippedExcluded++; continue; }
 
       models[id] = {
-        input: pin * FX * 1e6,
-        output: pout * FX * 1e6,
+        input: Number((pin * FX * 1e6).toFixed(4)),
+        output: Number((pout * FX * 1e6).toFixed(4)),
       };
     }
 
@@ -142,16 +160,14 @@ const openrouter = {
 };
 
 /* ============================================================
- * 1. SiliconFlow（硅基流动）— 有公开 API，但接口不返回价格
- *    实测 /v1/models 只返回 id/object/created/owned_by，无价格字段。
- *    需配 SILICONFLOW_API_KEY 才能调用，但调到了也拿不到价格，
- *    因此该源目前无法用于抓价（保留代码备将来接口增强）。
+ * 1. SiliconFlow（硅基流动）
+ *    实测 /v1/models 只返回 id/object/created/owned_by，没有价格字段，
+ *    因此该源无法用于抓价（代码保留，等接口增强；要价格需改抓定价页）。
  * ============================================================ */
 const siliconflow = {
   name: '硅基流动',
   type: 'api',
   // ⚠️ 域名坑：api.siliconflow.io 不存在（2026-09-19 实测 DNS ENOTFOUND）。
-  //    正确域名：国内 api.siliconflow.cn / 国际 api.siliconflow.com（均为 HTTP 401 需鉴权）。
   apiBase: 'https://api.siliconflow.cn/v1',
   models: ['DeepSeek-V4-Flash', 'DeepSeek-V3.2', 'GLM-5.2', 'Kimi-K2.5', 'MiniMax-M2.7', '混元 Hy3 Preview'],
   fetch: async function() {
@@ -168,8 +184,6 @@ const siliconflow = {
       console.log('  ℹ API 未返回模型列表');
       return null;
     }
-
-    // 把字段结构打进日志：万一接口改名/加字段，看日志就知道该怎么调
     console.log(`  ℹ API 返回 ${list.length} 个模型，字段：${Object.keys(list[0]).join(', ')}`);
 
     const models = {};
@@ -184,8 +198,6 @@ const siliconflow = {
       if (input === null || output === null) continue;
       withPrice++;
 
-      // 硅基流动的 ID 形如 "deepseek-ai/DeepSeek-V3.2"、"Pro/deepseek-ai/DeepSeek-V3"，
-      // 总表里记的是不带前缀的短名，所以剥掉最后一段之前的所有内容再作为键。
       const id = String(m.id || '').trim();
       const key = id.includes('/') ? id.slice(id.lastIndexOf('/') + 1) : id;
       if (key) models[key] = { input, output };
@@ -196,7 +208,6 @@ const siliconflow = {
       return null;
     }
 
-    // 打几条样例值，方便确认单位口径（元/百万 还是 元/token）
     const sample = Object.entries(models).slice(0, 3)
       .map(([k, v]) => `${k}=¥${v.input}/¥${v.output}`).join('  ');
     console.log(`  ℹ ${withPrice} 个模型带价格字段，样例：${sample}`);
@@ -206,276 +217,134 @@ const siliconflow = {
 
 /* ============================================================
  * 2. OpenAI — 爬定价页
+ *    旧实现的 __NEXT_DATA__ 正则用非贪婪匹配，JSON 几乎必然被截断；
+ *    字段名 input_price_per_1m_tokens 也是臆造的。现改为：
+ *      定位标记 → 取到最近的 </script> 为止 → JSON.parse（失败即放弃）
+ *      → 打印字段结构便于校准
  * ============================================================ */
 const openai = {
   name: 'OpenAI',
   type: 'html',
   url: 'https://openai.com/api/pricing/',
-  models: ['GPT-5.5', 'GPT-5.5 Pro', 'GPT-5.5-mini', 'GPT-5.5-nano', 'GPT-5.4', 'GPT-5.3', 'GPT-5.2', 'GPT-5', 'GPT-4.1', 'GPT-4o'],
+  models: ['GPT-5.6 Luna', 'GPT-5.6 Terra', 'GPT-5.6 Sol', 'GPT-5.5', 'GPT-5.5 Pro'],
   fetch: async function() {
     const html = await fetchHtml(this.url);
-    // OpenAI 定价页是 Next.js SSR，价格数据在 __NEXT_DATA__ JSON 中
-    const m = html.match(/__NEXT_DATA__[^>]*>(\{.*?\})<\/script>/s);
-    if (!m) return null;
-    try {
-      const data = JSON.parse(m[1]);
-      const models = {};
-      if (data.props?.pageProps?.pricing) {
-        for (const [id, info] of Object.entries(data.props.pageProps.pricing)) {
-          models[id] = {
-            input: parseFloat(info.input_price_per_1m_tokens || 0) * 7.1,
-            output: parseFloat(info.output_price_per_1m_tokens || 0) * 7.1,
-          };
-        }
-      }
-      return models;
-    } catch (e) {
+
+    const idx = html.indexOf('__NEXT_DATA__');
+    if (idx === -1) {
+      console.log('  ℹ 页面未找到 __NEXT_DATA__（可能改版），需人工校准');
       return null;
     }
+    const start = html.indexOf('{', idx);
+    const end = html.indexOf('</script>', idx);
+    if (start === -1 || end === -1 || end <= start) return null;
+
+    let data;
+    try {
+      data = JSON.parse(html.slice(start, end).trim());
+    } catch (e) {
+      console.log('  ⚠ __NEXT_DATA__ JSON 解析失败：' + e.message.slice(0, 80));
+      return null;
+    }
+
+    // 结构未知，按候选路径找含价格的数组/对象
+    const nodes = [
+      data.props?.pageProps?.pricing,
+      data.props?.pageProps?.models,
+      data.props?.pageProps?.data,
+    ].filter(Boolean);
+
+    const models = {};
+    for (const node of nodes) {
+      const arr = Array.isArray(node) ? node : Object.values(node);
+      for (const info of arr) {
+        const id = pick(info, ['slug', 'id', 'name', 'model']);
+        const pin = num(pick(info, [
+          'input_price_per_1m_tokens', 'input_per_1m', 'price.input', 'pricing.input', 'input',
+        ]));
+        const pout = num(pick(info, [
+          'output_price_per_1m_tokens', 'output_per_1m', 'price.output', 'pricing.output', 'output',
+        ]));
+        if (!id || pin === null || pout === null || pin <= 0 || pout <= 0) continue;
+        // 官方页单位是「美元/每百万」，直接乘汇率
+        models[id] = { input: Number((pin * FX).toFixed(4)), output: Number((pout * FX).toFixed(4)) };
+      }
+    }
+
+    if (!Object.keys(models).length) {
+      console.log('  ℹ __NEXT_DATA__ 里没找到价格字段，需人工校准（字段结构见下）');
+      console.log('  ℹ 顶层键：' + Object.keys(data).join(', '));
+      return null;
+    }
+    return models;
   },
 };
 
 /* ============================================================
- * 3. Anthropic — 爬定价页
+ * 3~9. 表格型定价页（统一工厂，白名单强约束）
  * ============================================================ */
-const anthropic = {
+const anthropic = tableSource({
   name: 'Anthropic',
-  type: 'html',
   url: 'https://www.anthropic.com/pricing',
-  models: ['Claude Fable 5.1', 'Claude Opus 4.1', 'Claude Sonnet 4', 'Claude Haiku 4.5', 'Claude Haiku 3.5'],
-  fetch: async function() {
-    const html = await fetchHtml(this.url);
-    const models = parseHtmlPrices(html, {
-      pattern: /([A-Za-z0-9 .-]+?)\s*[\$]\s*([\d.]+)\s*(?:\/|、)\s*[\$]\s*([\d.]+)/g,
-      usdToCny: 7.1,
-      quotePer: 1e6,   // 页面报价为「美元 / 每百万 token」
-    });
-    return models;
-  },
-};
+  models: ['Claude Fable 5', 'Claude Fable 5.1', 'Claude Opus 5', 'Claude Opus 4.8',
+           'Claude Opus 4.1', 'Claude Sonnet 5', 'Claude Sonnet 4.6', 'Claude Sonnet 4'],
+});
 
-/* ============================================================
- * 4. Google — 爬 AI Studio 定价页
- * ============================================================ */
-const google = {
+const google = tableSource({
   name: 'Google',
-  type: 'html',
   url: 'https://ai.google.dev/pricing',
-  models: ['Gemini 3 Pro', 'Gemini 3 Flash', 'Gemini 3 Flash-Lite', 'Gemini 2.5 Pro', 'Gemini 2.5 Flash', 'Gemini 2.5 Flash-Lite', 'Gemma 3 27B', 'Gemma 3 12B'],
-  fetch: async function() {
-    const html = await fetchHtml(this.url);
-    const models = parseHtmlPrices(html, {
-      pattern: /([A-Za-z0-9 .-]+?)\s*[\$]\s*([\d.]+)\s*\/\s*([\d.]+)/g,
-      usdToCny: 7.1,
-      quotePer: 1e6,   // 页面报价为「美元 / 每百万 token」
-    });
-    return models;
-  },
-};
+  models: ['Gemini 3.8 Flash', 'Gemini 3.6 Flash', 'Gemini 3 Pro', 'Gemini 3 Flash',
+           'Gemini 3 Flash-Lite', 'Gemini 2.5 Pro', 'Gemini 2.5 Flash', 'Gemini 2.5 Flash-Lite'],
+});
 
-/* ============================================================
- * 5. DeepSeek — 爬定价页
- * ============================================================ */
-const deepseek = {
+const deepseek = tableSource({
   name: '深度求索',
-  type: 'html',
   url: 'https://api-docs.deepseek.com/quick_start/pricing',
-  models: ['DeepSeek-V4-Pro', 'DeepSeek-V4-Flash', 'DeepSeek-V3.2', 'DeepSeek-V3.1', 'DeepSeek-V2'],
-  fetch: async function() {
-    const html = await fetchHtml(this.url);
-    const models = {};
-    const rows = html.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g) || [];
-    for (const row of rows) {
-      const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
-      if (cells.length < 3) continue;
-      const name = extractText(cells[0]);
-      const input = parseFloat(extractText(cells[1]).replace(/[^\d.]/g, ''));
-      const output = parseFloat(extractText(cells[2]).replace(/[^\d.]/g, ''));
-      if (name && input && output) {
-        models[name] = { input, output };
-      }
-    }
-    return models;
-  },
-};
+  models: ['DeepSeek-V4-Pro', 'DeepSeek-V4-Flash', 'DeepSeek-V3.2', 'DeepSeek-V3.1'],
+});
 
-/* ============================================================
- * 6. 阿里云百炼 — 爬定价页
- * ============================================================ */
-const bailian = {
+const bailian = tableSource({
   name: '阿里云百炼',
-  type: 'html',
   url: 'https://help.aliyun.com/zh/model-studio/product-overview/billing-methods',
-  models: ['通义千问 Qwen3.6-Plus', '通义千问 Qwen3.5-Turbo', '通义千问 Qwen3.5-Max', '通义万相 Wan 2.6', '通义万相 Wan 2.5'],
-  fetch: async function() {
-    const html = await fetchHtml(this.url);
-    const models = {};
-    const rows = html.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g) || [];
-    for (const row of rows) {
-      const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
-      if (cells.length < 3) continue;
-      const name = extractText(cells[0]);
-      const input = parseFloat(extractText(cells[1]).replace(/[^\d.]/g, ''));
-      const output = parseFloat(extractText(cells[2]).replace(/[^\d.]/g, ''));
-      if (name && input && output) {
-        models[name] = { input, output };
-      }
-    }
-    return models;
-  },
-};
+  models: ['千问 Qwen3.8 Max', '千问 Qwen3.8 Flash', '千问 Qwen3.6 Plus', '通义千问 Qwen3.6-Plus',
+           '千问 Qwen3.5 Turbo', '千问 Qwen3.5 Max'],
+});
 
-/* ============================================================
- * 7. 腾讯云 — 爬定价页
- * ============================================================ */
-const tencentCloud = {
+const tencentCloud = tableSource({
   name: '腾讯云',
-  type: 'html',
   url: 'https://cloud.tencent.com/document/product/1729/97731',
   models: ['混元 Hy3 Preview', '混元 Hy3'],
-  fetch: async function() {
-    const html = await fetchHtml(this.url);
-    if (html.length < 500) return null;
-    const models = {};
-    const rows = html.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g) || [];
-    for (const row of rows) {
-      const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
-      if (cells.length < 3) continue;
-      const name = extractText(cells[0]);
-      const input = parseFloat(extractText(cells[1]).replace(/[^\d.]/g, ''));
-      const output = parseFloat(extractText(cells[2]).replace(/[^\d.]/g, ''));
-      if (name && input && output) {
-        models[name] = { input, output };
-      }
-    }
-    return models;
-  },
-};
+});
 
-/* ============================================================
- * 8. 火山方舟 — 爬定价页
- * ============================================================ */
-const volcengine = {
+const volcengine = tableSource({
   name: '火山方舟',
-  type: 'html',
   url: 'https://www.volcengine.com/docs/82379/1330010',
-  models: ['豆包 Doubao-Seed-2.0', '豆包 Doubao-Seed-2.0-Pro', '豆包 Doubao-Seed-2.0-Mini', '豆包 Doubao-Seed-1.6'],
-  fetch: async function() {
-    const html = await fetchHtml(this.url);
-    if (html.length < 500) return null;
-    const models = {};
-    const rows = html.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g) || [];
-    for (const row of rows) {
-      const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
-      if (cells.length < 3) continue;
-      const name = extractText(cells[0]);
-      const input = parseFloat(extractText(cells[1]).replace(/[^\d.]/g, ''));
-      const output = parseFloat(extractText(cells[2]).replace(/[^\d.]/g, ''));
-      if (name && input && output) {
-        models[name] = { input, output };
-      }
-    }
-    return models;
-  },
-};
+  models: ['豆包 Seed 2.0 Pro', '豆包 Seed 2.0 Mini', '豆包 Doubao Seed2.1 Pro', '豆包 Seed 2.0'],
+});
 
-/* ============================================================
- * 9. 百度千帆 — 爬定价页
- * ============================================================ */
-const qianfan = {
+const qianfan = tableSource({
   name: '百度千帆',
-  type: 'html',
   url: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Ilk54t1ne',
   models: ['文心一言 ERNIE 4.5', '文心一言 ERNIE 4.0 Turbo'],
-  fetch: async function() {
-    const html = await fetchHtml(this.url);
-    if (html.length < 500) return null;
-    const models = {};
-    const rows = html.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g) || [];
-    for (const row of rows) {
-      const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
-      if (cells.length < 3) continue;
-      const name = extractText(cells[0]);
-      const input = parseFloat(extractText(cells[1]).replace(/[^\d.]/g, ''));
-      const output = parseFloat(extractText(cells[2]).replace(/[^\d.]/g, ''));
-      if (name && input && output) {
-        models[name] = { input, output };
-      }
-    }
-    return models;
-  },
-};
+});
 
-/* ============================================================
- * 10. xAI — 爬定价页
- * ============================================================ */
-const xai = {
-  name: 'xAI',
-  type: 'html',
-  url: 'https://x.ai/pricing',
-  models: ['Grok 4', 'Grok 4 Fast', 'Grok 3'],
-  fetch: async function() {
-    const html = await fetchHtml(this.url);
-    const models = parseHtmlPrices(html, {
-      pattern: /([A-Za-z0-9 .-]+?)\s*[\$]\s*([\d.]+)\s*(?:\/|、)\s*[\$]\s*([\d.]+)/g,
-      usdToCny: 7.1,
-      quotePer: 1e6,   // 页面报价为「美元 / 每百万 token」
-    });
-    return models;
-  },
-};
-
-/* ============================================================
- * 11. 月之暗面 Kimi
- * ============================================================ */
-const kimi = {
+const kimi = tableSource({
   name: '月之暗面',
-  type: 'html',
   url: 'https://platform.moonshot.cn/docs/pricing',
-  models: ['Kimi-K2.7-Code', 'Kimi-K2.5', 'Kimi-K2-Thinking', 'Kimi-K1.5'],
-  fetch: async function() {
-    const html = await fetchHtml(this.url);
-    const models = {};
-    const rows = html.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g) || [];
-    for (const row of rows) {
-      const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
-      if (cells.length < 3) continue;
-      const name = extractText(cells[0]);
-      const input = parseFloat(extractText(cells[1]).replace(/[^\d.]/g, ''));
-      const output = parseFloat(extractText(cells[2]).replace(/[^\d.]/g, ''));
-      if (name && input && output) {
-        models[name] = { input, output };
-      }
-    }
-    return models;
-  },
-};
+  models: ['Kimi K2.7 Code', 'Kimi K2.8 Preview', '月之暗面 Kimi K3', 'Kimi K2.6', 'Kimi K2.5'],
+});
 
-/* ============================================================
- * 12. 智谱 GLM
- * ============================================================ */
-const glm = {
+const glm = tableSource({
   name: '智谱',
-  type: 'html',
   url: 'https://open.bigmodel.cn/pricing',
-  models: ['智谱 GLM-5.3', '智谱 GLM-5.2', '智谱 GLM-4.5', '智谱 GLM-4-Flash-Long'],
-  fetch: async function() {
-    const html = await fetchHtml(this.url);
-    const models = {};
-    const rows = html.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g) || [];
-    for (const row of rows) {
-      const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
-      if (cells.length < 3) continue;
-      const name = extractText(cells[0]);
-      const input = parseFloat(extractText(cells[1]).replace(/[^\d.]/g, ''));
-      const output = parseFloat(extractText(cells[2]).replace(/[^\d.]/g, ''));
-      if (name && input && output) {
-        models[name] = { input, output };
-      }
-    }
-    return models;
-  },
-};
+  models: ['智谱 GLM-5.3', '智谱 GLM-5.2', '智谱 GLM-5.3 Flash', '智谱 GLM-4.5'],
+});
+
+const xai = tableSource({
+  name: 'xAI',
+  url: 'https://x.ai/pricing',
+  models: ['Grok 4.6', 'Grok 4.5', 'Grok 4.3', 'Grok 4'],
+});
 
 /* ============================================================
  * 所有数据源列表
@@ -487,4 +356,4 @@ const SOURCES = [
   bailian, tencentCloud, volcengine, qianfan, xai, kimi, glm,
 ];
 
-module.exports = { SOURCES, fetchHtml, parseHtmlPrices, extractText };
+module.exports = { SOURCES, FX, fetchHtml, parseModelPriceTable, parseHtmlPrices, extractText };

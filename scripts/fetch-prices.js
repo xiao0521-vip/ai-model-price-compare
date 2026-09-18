@@ -19,32 +19,28 @@
 
 const fs = require('fs');
 const path = require('path');
-const { SOURCES } = require('./config');
 const {
   SANITY, parseDataJs, patchDataJs, patchDate, judgePrice, priceChanged,
   summarizeChanges, matchModel, toTokens,
 } = require('./lib');
+const { SOURCES, FX } = require('./config');
 
 const DRY_RUN = process.argv.includes('--dry-run');
+// 调试/校准用：--only=OpenRouter 只跑某一个源
+const ONLY = (process.argv.find(a => a.startsWith('--only=')) || '').split('=')[1] || null;
 const ROOT = path.resolve(__dirname, '..');
 const DATA_JS = path.join(ROOT, 'data.js');
 const DEPLOY_DATA_JS = path.join(ROOT, 'deploy', 'data.js');
-const FX = 7.10; // USD → CNY
 const TODAY = new Date().toISOString().slice(0, 10);
+// 单源运行时间预算：本任务优先准确而非速度，但也不能撞上 CI 的 15 分钟上限
+const TIME_BUDGET_MS = 8 * 60 * 1000;
 
 /* ============================================================
  * 工具函数
  * ============================================================ */
 
 /* matchModel / isNoiseName 已移入 lib.js（第 11、12 节），便于单测。
- * 严格前缀匹配 + 噪声过滤，杜绝 "2.0" 命中 "美团 LongCat 2.0" 这类误配。 */
-
-/** 根据模型的 vendorTag 找到对应的数据源 */
-function findSource(model) {
-  const tag = model.vendorTag || '';
-  return SOURCES.find(s => s.name === tag) ||
-         SOURCES.find(s => s.name && tag.includes(s.name));
-}
+ * 严格核心词元匹配 + 噪声过滤，杜绝 "2.0" 命中 "美团 LongCat 2.0" 这类误配。 */
 
 /* ============================================================
  * 主流程
@@ -62,7 +58,7 @@ async function main() {
   console.log(`📄 读取 data.js: ${MODELS.length} 款模型, ${SUBSCRIPTIONS.length} 组订阅`);
   console.log('');
 
-  // 2) 逐源抓取
+  // 1b) 限时优惠价到期核验：promoUntil 已过就恢复常规价（需求：每日重新核验优惠是否有效）
   const changes = [];
   const changedModels = new Set();
   const unmatched = [];
@@ -72,7 +68,34 @@ async function main() {
   const softWarns = [];   // 波动较大但照常更新的价格
   let priceUpdateCount = 0;
 
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  for (const m of MODELS) {
+    if (!m.promoUntil || !DATE_RE.test(m.promoUntil)) continue;
+    if (TODAY <= m.promoUntil) continue;                    // 优惠仍在有效期
+    if (m.regularPm == null || m.regularOutPm == null) continue;
+    if (m.inputPm >= m.regularPm) continue;                 // 已经是常规价
+
+    console.log(`  ⏰ [${m.short}] 优惠价（至 ${m.promoUntil}）已过期：` +
+      `¥${m.inputPm}/¥${m.outputPm} → 恢复常规价 ¥${m.regularPm}/¥${m.regularOutPm}`);
+    changes.push(
+      { model: m.short, field: 'inputPm',  oldVal: m.inputPm,  newVal: m.regularPm,    source: '优惠到期' },
+      { model: m.short, field: 'outputPm', oldVal: m.outputPm, newVal: m.regularOutPm, source: '优惠到期' },
+    );
+    m.inputPm = m.regularPm;
+    m.outputPm = m.regularOutPm;
+    changedModels.add(m.short);
+  }
+  if (changes.length) console.log('');
+
+  // 2) 逐源抓取
+  const deadline = Date.now() + TIME_BUDGET_MS;
   for (const source of SOURCES) {
+    if (ONLY && source.name !== ONLY) continue;
+    if (Date.now() > deadline) {
+      console.log(`⏰ 已到单次运行时间预算（${TIME_BUDGET_MS / 60000} 分钟），跳过剩余源：` +
+        SOURCES.filter(s => !ONLY && SOURCES.indexOf(s) >= SOURCES.indexOf(source)).map(s => s.name).join('、'));
+      break;
+    }
     console.log(`🔄 抓取 [${source.name}]...`);
     try {
       const result = await source.fetch.call(source);

@@ -69,6 +69,106 @@ function parseHtmlPrices(html, opts = {}) {
 }
 
 /* ============================================================
+ * 2b. 价格文本解析：把「¥2/百万tokens」「$0.27/1M」「0.001元/千tokens」
+ *     这类单元格解析成结构化结果。解析不出返回 null。
+ *     关键：没有币种标记（¥/$/元/美元）的数字一律不当作价格，
+ *          避免把「3,500万 Tokens」这类配额数字误当单价。
+ * ============================================================ */
+function parsePriceText(raw) {
+  if (!raw) return null;
+  const s = String(raw)
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!s) return null;
+
+  let currency = null;
+  if (/[$]|USD|美元/i.test(s)) currency = 'USD';
+  if (/[¥￥]|CNY|RMB|人民币|(?:^|\s)元/.test(s)) currency = 'CNY';
+  if (!currency) return null;
+
+  // 计价单位：每多少 token（缺省按每百万）
+  let perTokens = 1e6;
+  if (/\/\s*1?k\b|每\s*千|per\s*1?k\s|1k\s*tok/i.test(s)) perTokens = 1e3;
+  else if (/\/\s*1?m\b|每\s*百万|per\s*1m\s|百万/i.test(s)) perTokens = 1e6;
+
+  // 取第一个数字（支持千分位逗号）
+  const m = s.match(/(\d[\d,]*(?:\.\d+)?)/);
+  if (!m) return null;
+  const value = parseFloat(m[1].replace(/,/g, ''));
+  if (!isFinite(value) || value <= 0) return null;
+
+  return { value, currency, perTokens };
+}
+
+/** 把 parsePriceText 的结果换算成「元 / 每百万 token」 */
+function toYuanPerMillion(parsed, fx) {
+  if (!parsed) return null;
+  const rate = parsed.currency === 'USD' ? (fx || 7.1) : 1;
+  return parsed.value * (1e6 / parsed.perTokens) * rate;
+}
+
+/* ============================================================
+ * 2c. 通用「模型定价表」解析器
+ *     逐行拆 <tr> → 拆单元格 → 第一个单元格当模型名，
+ *     其余单元格用 parsePriceText 识别，取前两个能识别的当 输入价/输出价。
+ *     opts:
+ *       fx        - 美元→人民币汇率（默认 7.1）
+ *       only      - 白名单数组：只返回名称能对上这些关键字的行（强烈建议传，
+ *                   否则页面上的表头/页脚/无关数字都会混进来）
+ *       log       - 日志函数
+ * ============================================================ */
+function parseModelPriceTable(html, opts = {}) {
+  const out = {};
+  if (!html) return out;
+  const fx = opts.fx || 7.1;
+  const only = Array.isArray(opts.only) && opts.only.length ? opts.only : null;
+  const log = opts.log || (() => {});
+  const found = [];
+
+  const rows = String(html).match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
+  for (const row of rows) {
+    const cells = row.match(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi) || [];
+    if (cells.length < 3) continue;
+
+    const texts = cells.map(c =>
+      String(c).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/\s+/g, ' ').trim()
+    );
+
+    const name = texts[0];
+    if (!name || name.length > 80) continue;
+    // 跳过表头/说明行
+    if (/^(模型|名称|价格|单价|计费|输入|输出|说明|备注|model|name|price|input|output|tier|plan)s?$/i.test(name)) continue;
+
+    const prices = [];
+    for (let i = 1; i < texts.length && prices.length < 2; i++) {
+      const parsed = parsePriceText(texts[i]);
+      if (parsed) prices.push(toYuanPerMillion(parsed, fx));
+    }
+    if (prices.length < 2) continue;
+
+    const entry = { input: Number(prices[0].toFixed(4)), output: Number(prices[1].toFixed(4)) };
+    if (only) {
+      const hit = only.find(k => {
+        const kt = toTokens(k).sort().join(' ');
+        const nt = toTokens(name).sort().join(' ');
+        return nt === kt;
+      });
+      if (hit) { out[hit] = entry; found.push(`${name} → ${hit} ¥${entry.input}/¥${entry.output}`); }
+      continue;
+    }
+    out[name] = entry;
+    found.push(`${name} ¥${entry.input}/¥${entry.output}`);
+  }
+
+  if (found.length) log(`  ℹ 表格解析出 ${found.length} 行：${found.slice(0, 6).join('；')}${found.length > 6 ? ' …' : ''}`);
+  return out;
+}
+
+/* ============================================================
  * 3. 带重试的 HTTP GET
  * ============================================================ */
 async function fetchWithRetry(url, maxRetries = 3, delay = 2000) {
@@ -135,8 +235,16 @@ function patchDataJs(content, changes) {
       continue;
     }
 
-    const end = Math.min(out.length, at + WINDOW);
+    // 窗口自适应：个别模型的 desc/priceSrc 很长，900 字符可能不够，逐步扩窗到 3600
+    let end = Math.min(out.length, at + WINDOW);
     let win = out.slice(at, end);
+    for (const w of [1800, 3600]) {
+      const re = c.field === 'updated'
+        ? /(updated:\s*")([\d-]+)(")/
+        : new RegExp('(' + c.field + ':\\s*)(-?[\\d.]+)');
+      const tryEnd = Math.min(out.length, at + w);
+      if (re.test(out.slice(at, tryEnd))) { end = tryEnd; win = out.slice(at, tryEnd); break; }
+    }
 
     if (c.field === 'updated') {
       const re = /(updated:\s*")([\d-]+)(")/;
@@ -348,6 +456,9 @@ module.exports = {
   SANITY,
   extractText,
   parseHtmlPrices,
+  parsePriceText,
+  toYuanPerMillion,
+  parseModelPriceTable,
   fetchWithRetry,
   readDataJs,
   parseDataJs,
