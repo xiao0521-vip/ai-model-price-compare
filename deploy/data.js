@@ -161,11 +161,11 @@ var MODELS = [
 {
   name: "GPT-5.6-Sol", short: "GPT-5.6 Sol", family: "GPT-5.6",
   vendor: "OpenAI", vendorZh: "OpenAI", type: "通用旗舰", billing: "per_token",
-  inputPm: 28.40, outputPm: 170.40, cnyOnly: false, context: "400K",
+  inputPm: 28.40, outputPm: 142.00, cnyOnly: false, context: "400K",
   tags: ["text","multimodal","code","reasoning","agent"],
   vendorTag: "OpenAI官方",
-  priceSrc: "OpenAI官方直连（促销 $4.00/$20.00 至2026-11-21，之后 $5/$30）",
-  updated: "2026-09-11",
+  priceSrc: "OpenAI官方直连（促销 $4.00/$20.00 至2026-11-21，之后 $5/$30）；超272K输入按2×/1.5×计费",
+  updated: "2026-09-19",
   desc: "GPT-5.6 旗舰（ChatGPT Plus/Pro 主力模型），统一推理档位滑块、深度推理+代码+智能体能力最强，面向高价值复杂任务。",
 },
 {
@@ -355,11 +355,11 @@ var MODELS = [
 {
   name: "Gemini-3.6-Flash", short: "Gemini 3.6 Flash", family: "Gemini 3.6",
   vendor: "Google", vendorZh: "谷歌", type: "性价比", billing: "per_token",
-  inputPm: 10.65, outputPm: 53.25, cnyOnly: false, context: "1.0M",
+  inputPm: 5.33, outputPm: 26.63, cnyOnly: false, context: "1.0M",
   tags: ["text","multimodal","longctx","code","reasoning"],
   vendorTag: "Google官方",
-  priceSrc: "Google官方直连（$1.50/$7.50），超200K上下文加价",
-  updated: "2026-08-04",
+  priceSrc: "Google官方直连（促销 $0.75/$3.75 至2026-12-31，之后 $1.50/$7.50），超200K上下文加价",
+  updated: "2026-09-19",
   desc: "Gemini 3.6 系列均衡档，输出单价低于同级 3.5 Flash，主打高吞吐通用任务与长文档处理。",
 },
 {

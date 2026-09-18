@@ -358,4 +358,6 @@ module.exports = {
   summarizeChanges,
   isNoiseName,
   matchModel,
+  toTokens,
+  coreTokens,
 };

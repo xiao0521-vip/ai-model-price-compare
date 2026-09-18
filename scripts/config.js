@@ -85,6 +85,10 @@ const openrouter = {
   type: 'api',
   apiBase: 'https://openrouter.ai/api/v1',
   models: [],
+  // OpenRouter 报价与官方不一致、经人工核实后排除的模型（宁可漏更新，不可写错价）：
+  //   gpt-5.6-sol —— OpenAI 官方促销价 $4/$20（至 2026-11-21，见 developers.openai.com），
+  //                  OpenRouter 却报 $2/$10，恰好一半，来源不明 → 不采信
+  skip: new Set(['gpt-5.6-sol']),
   fetch: async function() {
     const res = await AX.get(this.apiBase + '/models', {
       headers: { Accept: 'application/json' },
@@ -100,6 +104,7 @@ const openrouter = {
     const models = {};
     let withPrice = 0;
     let skippedFree = 0;
+    let skippedExcluded = 0;
 
     for (const m of list) {
       const p = m.pricing || {};
@@ -115,6 +120,7 @@ const openrouter = {
       let id = String(m.id || '').replace(/^~/, '').trim();
       if (id.includes('/')) id = id.slice(id.lastIndexOf('/') + 1);
       if (!id) continue;
+      if (this.skip && this.skip.has(id)) { skippedExcluded++; continue; }
 
       models[id] = {
         input: pin * FX * 1e6,
@@ -129,7 +135,7 @@ const openrouter = {
 
     const sample = Object.entries(models).slice(0, 3)
       .map(([k, v]) => `${k}=¥${v.input.toFixed(2)}/¥${v.output.toFixed(2)}`).join('  ');
-    console.log(`  ℹ ${list.length} 个模型，${withPrice} 个含有效价格（跳过免费/未定价 ${skippedFree} 个）`);
+    console.log(`  ℹ ${list.length} 个模型，${withPrice} 个含有效价格（跳过免费/未定价 ${skippedFree} 个、人工排除 ${skippedExcluded} 个）`);
     console.log(`  ℹ 样例：${sample}`);
     return models;
   },

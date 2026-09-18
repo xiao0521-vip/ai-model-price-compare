@@ -22,7 +22,7 @@ const path = require('path');
 const { SOURCES } = require('./config');
 const {
   SANITY, parseDataJs, patchDataJs, patchDate, judgePrice, priceChanged,
-  summarizeChanges, matchModel,
+  summarizeChanges, matchModel, toTokens,
 } = require('./lib');
 
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -151,24 +151,36 @@ async function main() {
     }
   }
 
-  // 2.5) 去重：同一模型同一字段若被多个源给出不同值，只保留优先级最高的（SOURCES 顺序即优先级）
-  const seenField = new Map();
-  const deduped = [];
+  // 2.5) 去重与择优。同一模型同一字段可能被多个来源命中，规则：
+  //   a) 不同源 → 按 SOURCES 顺序（先到先得），顺序即优先级
+  //   b) 同一源的不同 id（如 deepseek-v4-flash / -latest / -1125）→
+  //      取「原始词元最少」的 id，越短越接近基础款/官方主条目
+  const best = new Map();
+  const order = [];
   const conflicts = [];
   for (const c of changes) {
     const k = c.model + '|' + c.field;
-    if (seenField.has(k)) {
-      const kept = seenField.get(k);
+    const prev = best.get(k);
+    if (!prev) { best.set(k, c); order.push(k); continue; }
+
+    if (prev.source === c.source) {
+      const pn = toTokens(prev.matchedKey || '').length;
+      const cn = toTokens(c.matchedKey || '').length;
+      const preferNew = cn < pn;
       conflicts.push(
-        `[${c.model}] ${c.field}：采用 ${kept.source}(¥${kept.newVal})，忽略 ${c.source}(¥${c.newVal})`
+        `[${c.model}] ${c.field}：同源多 id，采用 "${preferNew ? c.matchedKey : prev.matchedKey}"` +
+        `(¥${preferNew ? c.newVal : prev.newVal})，忽略 "${preferNew ? prev.matchedKey : c.matchedKey}"` +
+        `(¥${preferNew ? prev.newVal : c.newVal})`
       );
-      continue;
+      if (preferNew) best.set(k, c);
+    } else {
+      conflicts.push(
+        `[${c.model}] ${c.field}：采用 ${prev.source}(¥${prev.newVal})，忽略 ${c.source}(¥${c.newVal})`
+      );
     }
-    seenField.set(k, c);
-    deduped.push(c);
   }
   changes.length = 0;
-  changes.push(...deduped);
+  for (const k of order) changes.push(best.get(k));
 
   // 重新口径化「更新款数」= 去重后涉及价格的模型数
   priceUpdateCount = new Set(
