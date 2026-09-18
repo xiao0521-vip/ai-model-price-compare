@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>主流 AI 大模型性价比对比总表 · 2026-09</title>
+<meta name="description" content="覆盖全部公开可商用主流AI大模型，采集官方直连与火山/百炼/腾讯/硅基流动等聚合平台在售价，统一换算每百万token人民币成本，含订阅套餐档位对比。默认按综合成本从低到高排序。">
+<meta property="og:title" content="主流 AI 大模型性价比对比总表">
+<meta property="og:description" content="全主流大模型 API 定价 + 订阅套餐对比，统一换算每百万token人民币成本。">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --bg:#f6f8fa; --card:#ffffff; --ink:#1a2332; --muted:#5c6a7d;
+    --line:#e4e9f0; --accent:#2563eb; --accent-soft:#eff4ff;
+    --red:#e11d48; --green:#009688; --chip:#eef1f5;
+    --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.55; font-size:14px;
+    min-height:100dvh;
+  }
+  a{color:var(--accent);text-decoration:none}
+  .wrap{max-width:1280px;margin:0 auto;padding:16px 16px 48px}
+  /* ---------- 头部 ---------- */
+  header.top{
+    background:linear-gradient(135deg,#1d4ed8,#2563eb 45%,#3b82f6);
+    color:#fff; border-radius:var(--radius); padding:26px 24px; margin-bottom:16px;
+    box-shadow:var(--shadow);
+  }
+  header.top h1{margin:0 0 6px;font-size:22px;letter-spacing:.3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  header.top h1 .pill{font-size:12px;background:rgba(255,255,255,.2);padding:2px 10px;border-radius:20px;font-weight:500}
+  header.top p{margin:4px 0;opacity:.94;font-size:13px}
+  .meta-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .meta-row .badge{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.25);
+    padding:4px 12px;border-radius:20px;font-size:12px}
+  /* ---------- 计费方式分段控件 ---------- */
+  .bill-seg{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--card); border:1px solid var(--line);
+    border-radius:var(--radius); padding:10px 16px; margin-bottom:16px;
+    box-shadow:var(--shadow);
+  }
+  .bill-seg-label{
+    font-size:12px; font-weight:700; color:var(--muted);
+    letter-spacing:.4px; white-space:nowrap;
+  }
+  .seg{
+    display:flex; background:#e8edf4; border-radius:10px; padding:3px;
+    gap:2px; flex-wrap:wrap;
+  }
+  .seg button{
+    border:none; background:transparent; border-radius:8px;
+    padding:8px 18px; font-size:13px; cursor:pointer;
+    color:#5c6a7d; transition:all .2s ease;
+    white-space:nowrap; font-weight:500; line-height:1.4;
+  }
+  .seg button:hover:not(.active){
+    color:var(--accent); background:rgba(37,99,235,.08);
+  }
+  .seg button.active{
+    background:var(--accent); color:#fff; font-weight:600;
+    box-shadow:0 2px 8px rgba(37,99,235,.35);
+  }
+  .bill-info{
+    font-size:12px; color:var(--muted); flex:1; min-width:160px;
+    line-height:1.45;
+  }
+  /* ---------- 控制栏 ---------- */
+  .controls{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:16px;box-shadow:var(--shadow)}
+  .controls .row1{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:10px}
+  .search{flex:1;min-width:220px}
+  .search input{width:100%;padding:9px 14px;border:1px solid var(--line);border-radius:8px;
+    font-size:14px;outline:none;transition:border .2s}
+  .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .sort-ctrl{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .sort-ctrl button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;
+    cursor:pointer;font-size:13px;color:var(--ink);transition:.15s}
+  .sort-ctrl button:hover{border-color:var(--accent);color:var(--accent)}
+  .sort-ctrl button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .filters{display:flex;flex-direction:column;gap:9px;margin-top:12px;padding-top:12px;
+    border-top:1px solid var(--line)}
+  .frow{display:flex;align-items:center;gap:12px;min-width:0}
+  .flabel{flex:0 0 58px;text-align:right;font-size:12px;font-weight:700;color:var(--muted);
+    letter-spacing:.4px;white-space:nowrap}
+  .flabel em{font-style:normal;color:var(--accent);font-weight:700}
+  .chips{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;min-width:0;flex:1;
+    padding:1px 0 4px;scrollbar-width:thin;scrollbar-color:#c3ccda transparent}
+  .chips::-webkit-scrollbar{height:5px}
+  .chips::-webkit-scrollbar-track{background:transparent}
+  .chips::-webkit-scrollbar-thumb{background:#c3ccda;border-radius:3px}
+  .chips::-webkit-scrollbar-thumb:hover{background:#9aa7bb}
+  .chip{flex:0 0 auto;white-space:nowrap;border:1px solid var(--line);background:var(--chip);
+    border-radius:20px;padding:4px 12px;font-size:12.5px;cursor:pointer;user-select:none;
+    transition:.15s;color:var(--ink)}
+  .chip:hover{border-color:var(--accent);color:var(--accent)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .reset{margin-left:auto;font-size:12.5px;background:none;border:none;color:var(--accent);
+    cursor:pointer;text-decoration:underline}
+  /* ---------- 统计条 ---------- */
+  .stat{font-size:13px;color:var(--muted);margin:10px 0 8px}
+  .stat b{color:var(--accent)}
+  .stat .af{color:var(--accent);font-weight:600;margin-left:4px}
+  /* ---------- 表格 ---------- */
+  .tbl-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);box-shadow:var(--shadow)}
+  table{width:100%;border-collapse:collapse;min-width:1080px}
+  thead th{position:sticky;top:0;background:#f0f4fa;color:#33405a;text-align:left;font-size:12.5px;
+    padding:12px 12px;border-bottom:2px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+  thead th.sortable:hover{background:#e5ecf5}
+  thead th .arrow{font-size:10px;margin-left:3px;opacity:.45}
+  tbody td{padding:12px;border-bottom:1px solid var(--line);vertical-align:top;font-size:13.5px}
+  tbody tr:hover{background:#fafcff}
+  tbody tr:last-child td{border-bottom:none}
+  .model-name{font-weight:700;font-size:14px}
+  .model-sub{color:var(--muted);font-size:12px;margin-top:2px}
+  .type-tag{display:inline-block;background:var(--accent-soft);color:var(--accent);border-radius:6px;
+    padding:1px 8px;font-size:11.5px;font-weight:600}
+  .tag{display:inline-block;background:var(--chip);border:1px solid var(--line);border-radius:6px;
+    padding:1px 7px;font-size:11px;margin:2px 3px 2px 0;color:#44516b}
+  .tag.t-text{background:#fff;border-color:#cbd5e1}
+  .tag.t-multimodal{background:#fdf2f8;border-color:#f5c6dd;color:#be185d}
+  .tag.t-longctx{background:#eef6ff;border-color:#c3dcff;color:#1d4ed8}
+  .tag.t-code{background:#f6f0ff;border-color:#ddc9f7;color:#7c3aed}
+  .tag.t-reasoning{background:#fff7e6;border-color:#f7e2b8;color:#b45309}
+  .tag.t-research{background:#e7f9f6;border-color:#b8ece2;color:#0d9488}
+  .tag.t-agent{background:#ecfeff;border-color:#b8ecf5;color:#0e7490}
+  .tag.t-voice{background:#f5f3ff;border-color:#d8d3f7;color:#6d28d9}
+  .tag.t-realtime{background:#fee2e2;border-color:#f9c0c0;color:#b91c1c}
+  td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .price-input{color:var(--ink)}
+  .price-input .p{font-weight:700}
+  .price-input .u{color:var(--muted);font-size:11px}
+  .blend{font-weight:800;font-size:15px}
+  .blend.low{color:var(--green)}
+  .blend.mid{color:#b45309}
+  .blend.high{color:var(--red)}
+  .billing{display:inline-block;border-radius:6px;padding:2px 8px;font-size:11.5px;font-weight:600}
+  .billing.token{background:#eef2ff;color:#4f46e5}
+  .billing.pack{background:#ecfdf5;color:#059669}
+  .billing.sub{background:#fdf2f8;color:#db2777}
+  .ctx{font-weight:600;color:#33405a}
+  .src{font-size:11.5px;color:var(--muted);line-height:1.5}
+  .desc{
+    position:relative; font-size:13px; color:#2c3a4e;
+    max-width:340px; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+  }
+  .empty{padding:40px;text-align:center;color:var(--muted)}
+  /* ---------- 订阅区 ---------- */
+  h2.sec{font-size:18px;margin:34px 0 12px;display:flex;align-items:center;gap:8px}
+  h2.sec span{font-size:12px;color:var(--muted);font-weight:500}
+  .sub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+  .sub-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+  .sub-card .shead{background:#f0f4fa;padding:12px 14px;font-weight:700;font-size:14.5px;
+    display:flex;justify-content:space-between;align-items:center}
+  .sub-card .shead .kind{font-size:11px;font-weight:600;padding:2px 9px;border-radius:14px;white-space:nowrap}
+  .sub-card .shead .kind.sub{background:#fdf2f8;color:#db2777}
+  .sub-card .shead .kind.pack{background:#ecfdf5;color:#059669}
+  .sub-card .shead .kind.plat{background:#eef2ff;color:#4f46e5}
+  .sub-group-title{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:6px 0 -4px;
+    font-size:13.5px;font-weight:700;color:var(--ink)}
+  .sub-group-title span.sub{font-size:11.5px;font-weight:500;color:var(--muted)}
+  .sub-group-title::after{content:"";flex:1;height:1px;background:var(--line)}
+  .sub-card .sbody{padding:8px 14px 12px;flex:1}
+  .sub-card .plan{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line)}
+  .sub-card .plan:last-child{border-bottom:none}
+  .sub-card .plan .tier{font-weight:600;font-size:13px}
+  .sub-card .plan .price{font-weight:800;color:var(--accent);white-space:nowrap}
+  .sub-card .plan .feat{color:var(--muted);font-size:12px;margin-top:2px}
+  .sub-card .snote{padding:10px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);
+    background:#fbfcfe}
+  /* ---------- 套餐对比提示条 ---------- */
+  .compare-hint{
+    font-size:12.5px; color:var(--muted); background:var(--accent-soft);
+    border:1px solid #c3dcff; border-radius:8px; padding:8px 14px;
+    margin-bottom:14px; line-height:1.5;
+  }
+  .compare-hint b{color:var(--accent)}
+  /* ---------- 套餐卡片内模型清单表 ---------- */
+  .sub-card-models-title{
+    font-size:13px; font-weight:700; color:var(--ink);
+    margin:10px 0 6px; padding-top:10px;
+    border-top:1px dashed var(--line);
+  }
+  .model-detail{
+    width:100%; border-collapse:collapse; font-size:12px;
+    display:block; overflow-x:auto; min-width:0;
+    scrollbar-width:thin; scrollbar-color:#c3ccda transparent;
+  }
+  .model-detail::-webkit-scrollbar{height:5px}
+  .model-detail::-webkit-scrollbar-track{background:transparent}
+  .model-detail::-webkit-scrollbar-thumb{background:#c3ccda;border-radius:3px}
+  .model-detail::-webkit-scrollbar-thumb:hover{background:#9aa7bb}
+  .model-detail thead th{
+    position:sticky; top:0; background:#f0f4fa;
+    text-align:left; padding:8px 10px; font-size:11.5px;
+    font-weight:700; color:#33405a;
+    border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  .model-detail tbody td{
+    padding:7px 10px; border-bottom:1px solid var(--line);
+    vertical-align:top; white-space:nowrap;
+  }
+  .model-detail tbody tr:hover{background:#fafcff}
+  .md-name{font-weight:700; font-size:12.5px; color:var(--ink)}
+  .md-src{color:var(--muted); font-size:10.5px; margin-top:2px}
+  .md-tag{
+    display:inline-block; background:var(--chip); border:1px solid var(--line);
+    border-radius:4px; padding:1px 5px; font-size:10px; margin:1px 2px 1px 0;
+    color:#44516b; white-space:nowrap;
+  }
+  .md-ctx{font-weight:600; color:#33405a; font-size:11.5px}
+  .md-price{color:var(--accent); font-weight:700; font-size:11.5px}
+  .md-desc{color:var(--muted); font-size:10.5px; max-width:160px; white-space:normal; line-height:1.4}
+  /* ---------- 页脚 ---------- */
+  footer{margin-top:40px;padding:18px;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);font-size:12.5px;color:var(--muted);box-shadow:var(--shadow)}
+  footer h3{color:var(--ink);margin:0 0 8px;font-size:14px}
+  footer li{margin:4px 0}
+  /* ---------- 响应式适配 ---------- */
+  @media(max-width:1024px){
+    .sub-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+  }
+  @media(max-width:768px){
+    .wrap{padding:10px 10px 36px}
+    header.top{padding:18px 16px;border-radius:10px;margin-bottom:12px}
+    header.top h1{font-size:18px}
+    header.top p{font-size:12px}
+    .meta-row{gap:6px;margin-top:10px}
+    .meta-row .badge{font-size:11px;padding:3px 10px}
+
+    .bill-seg{gap:10px;padding:10px 12px;margin-bottom:12px}
+    .bill-seg-label{font-size:11px}
+    .seg{width:100%}
+    .seg button{flex:1;padding:8px 10px;font-size:12px}
+    .bill-info{min-width:100%;font-size:11px}
+
+    .controls{padding:12px 12px;margin-bottom:12px}
+    .controls .row1{flex-direction:column;align-items:stretch;gap:8px}
+    .search{min-width:0}
+    .search input{padding:8px 12px;font-size:13px}
+    .sort-ctrl{justify-content:space-between;font-size:12px}
+    .sort-ctrl button{padding:6px 10px;font-size:12px}
+    .reset{align-self:flex-end}
+
+    .frow{gap:8px}
+    .flabel{flex:0 0 48px;font-size:11px}
+    .chips{gap:5px}
+    .chip{padding:3px 10px;font-size:11.5px}
+
+    .stat{font-size:12px;margin:8px 0 6px}
+
+    .tbl-scroll{border-radius:8px}
+    table{min-width:920px}
+    thead th{padding:10px;font-size:11.5px}
+    tbody td{padding:10px;font-size:12.5px}
+    .model-name{font-size:13px}
+
+    .sub-grid{grid-template-columns:1fr;gap:12px}
+    .sub-card{border-radius:10px}
+    .sub-card .shead{padding:10px 12px;font-size:13.5px}
+    .sub-card .sbody{padding:6px 12px 10px}
+    .sub-card .plan{padding:7px 0}
+
+    h2.sec{font-size:16px;margin:24px 0 10px}
+    .compare-hint{font-size:11.5px;padding:7px 12px;margin-bottom:12px}
+
+    footer{margin-top:30px;font-size:11.5px;padding:14px}
+    footer h3{font-size:13px}
+  }
+  @media(max-width:480px){
+    .wrap{padding:8px 8px 28px}
+    header.top{padding:14px 12px}
+    header.top h1{font-size:16px}
+    header.top p{font-size:11px}
+    .meta-row{flex-direction:column;gap:4px}
+
+    .seg button{padding:7px 8px;font-size:11.5px}
+
+    .search input{font-size:12px}
+    .frow{flex-direction:column;align-items:flex-start;gap:4px}
+    .flabel{flex:none;text-align:left}
+
+    .sub-card .plan{flex-direction:column;gap:4px}
+    .sub-card .plan .price{font-size:14px}
+
+    .model-detail thead th{padding:6px 8px;font-size:10.5px}
+    .model-detail tbody td{padding:6px 8px;font-size:11px}
+    .md-desc{max-width:120px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>主流 AI 大模型性价比对比总表 <span class="pill" id="pill-count"></span></h1>
+    <p>覆盖全部公开可商用主流模型 + 官方直连与阿里云百炼 / 火山方舟 / 腾讯云 / 硅基流动 / 七牛云 / 百度千帆 等聚合平台在售价，统一换算「人民币 / 每百万 token」。</p>
+    <p>默认按「综合每百万token成本」（3:1 输入输出比加权）从低到高排序。</p>
+    <div class="meta-row">
+      <span class="badge">数据快照：<span id="meta-updated"></span></span>
+      <span class="badge">汇率：USD→CNY 1:7.1（换算参考）</span>
+      <span class="badge">订阅/套餐已摊薄为等效百万 token 价</span>
+    </div>
+  </header>
+
+  <!-- 计费方式切换（按量计费 / 云平台套餐 / Agent 桌面订阅） -->
+  <div class="bill-seg" id="bill-seg">
+    <span class="bill-seg-label">计费方式</span>
+    <div class="seg" id="seg-billing">
+      <button class="active" data-mode="token">📊 按量计费</button>
+      <button data-mode="subs">☁️ 云平台套餐</button>
+      <button data-mode="agent">💻 Agent 桌面订阅</button>
+    </div>
+    <span class="bill-info" id="bill-info"></span>
+  </div>
+
+  <!-- 控制栏 -->
+  <div class="controls" id="controls">
+    <div class="row1">
+      <div class="search">
+        <input type="text" id="search" placeholder="搜索模型全称 / 厂商 / 系列 / 标签…">
+      </div>
+      <div class="sort-ctrl">
+        综合成本排序
+        <button id="sort-asc" class="active">低→高</button>
+        <button id="sort-desc">高→低</button>
+      </div>
+      <button class="reset" id="reset">重置全部筛选</button>
+    </div>
+    <div class="filters">
+      <div class="frow">
+        <span class="flabel">厂商</span><div class="chips" id="chip-vendor"></div>
+      </div>
+      <div class="frow">
+        <span class="flabel">类型</span><div class="chips" id="chip-type"></div>
+      </div>
+      <div class="frow">
+        <span class="flabel">能力</span><div class="chips" id="chip-tag"></div>
+      </div>
+      <div class="frow">
+        <span class="flabel">计费</span><div class="chips" id="chip-billing"></div>
+      </div>
+      <div class="frow">
+        <span class="flabel">价格来源</span><div class="chips" id="chip-platform"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat" id="stat"><b id="shown"></b> / <span id="total"></span> 款模型在售在列 · 综合每百万token成本 = (输入×3+输出×1)/4 加权<span id="active-filters"></span></div>
+
+  <!-- 模型表格 -->
+  <div class="tbl-scroll" id="tbl-wrap">
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th data-k="blend" class="sortable">综合成本/百万tok <span class="arrow">▼</span></th>
+          <th>输入 ¥/百万</th>
+          <th>输出 ¥/百万</th>
+          <th data-k="name" class="sortable">模型 <span class="arrow"></span></th>
+          <th data-k="type" class="sortable">类型 <span class="arrow"></span></th>
+          <th data-k="context" class="sortable">上下文 <span class="arrow"></span></th>
+          <th>能力标签</th>
+          <th>计费模式</th>
+          <th>参考价来源</th>
+          <th>简介</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="empty" style="display:none">没有符合条件的模型。</div>
+  </div>
+
+  <!-- 套餐对比视图（计费方式切换到「云平台套餐」/「Agent 桌面订阅」时显示） -->
+  <div id="view-subs" style="display:none">
+    <h2 class="sec">☁️ 云平台 Token Plan / 套餐 <span>按 Credit / 请求数 / Token 额度计费</span></h2>
+    <div class="compare-hint" id="hint-subs">按量计价套餐按官方公示口径换算为「等效每百万 token 单价」供对比。</div>
+    <div class="sub-grid" id="sub-grid-subs"></div>
+  </div>
+  <div id="view-agent" style="display:none">
+    <h2 class="sec">💻 Agent 桌面工具订阅 <span>ChatGPT / Claude / Cursor 等按席位或额度计费</span></h2>
+    <div class="compare-hint" id="hint-agent">Agent 桌面订阅多按席位或"任务次数"计费，模型额度差异大，无官方 Credit→token 换算口径，仅供参考。</div>
+    <div class="sub-grid" id="sub-grid-agent"></div>
+  </div>
+
+  <footer>
+    <h3>⚖️ 数据口径与免责说明</h3>
+    <ul>
+      <li>所有按量价格已统一折算为「人民币 / 每百万 token」；外币按 1 USD ≈ ¥7.1 换算（2026-09 参考）。</li>
+      <li>顶部「计费方式」可切换 <b>按量计费 / 云平台套餐 / Agent 桌面订阅</b> 三视图：按量视图含 69 款模型与 5 维筛选，套餐视图按官方口径展开每档套餐的模型清单与等效单价，Agent 视图展示桌面工具订阅的档位与能力。</li>
+      <li>积分/点数制套餐的「等效每百万 token 单价」口径：<b>阿里百炼</b> 按 qwen3.6-plus 官方示例（1 Credit ≈ 12,429 tokens）；<b>腾讯云</b> 按 DeepSeek 系标准抵扣口径；<b>小米 MiMo</b> 按 Omni 1x / Pro 2x / 4x 倍率；<b>火山方舟/百度千帆/移动云</b> 为按请求数计费（无官方 token 换算口径，仅供对比）。</li>
+      <li>套餐价格含<b>限时活动价</b>（如火山方舟 Coding Plan 首两月 2.5 折 ¥9.9、腾讯云 Hy Lite 首月 ¥14、阿里云百炼组合购降价），活动多有名额与截止日期，实际以支付页为准。</li>
+      <li>「参考价来源」列与「价格来源」筛选标注该价采集自哪个渠道（官方直连或第三方聚合平台）；同一模型跨平台价差可达数倍，采购前建议比对。</li>
+      <li>已自动过滤官方已下线、连续 6 个月无版本或价格更新的停产旧模型，仅保留当前在售主推款。</li>
+      <li>各模型均标注「模型类型 + 能力标签 + 上下文窗口 + 一行官方定位简介」。</li>
+      <li>价格为 <b>采集快照</b>，实时波动；商用前请务必以各平台官方定价页为准。本表不构成任何投资或采购建议。</li>
+    </ul>
+  </footer>
+</div>
+
+<script src="data.js"></script>
+<script>
+"use strict";
+
+/* ---- 常量与状态 ---- */
+const FX = (window.META && META.fx) || 7.10;
+const state = {
+  search: "",
+  vendors: new Set(), types: new Set(), tags: new Set(), billings: new Set(),
+  platforms: new Set(),
+  dir: "asc",
+};
+
+/* ---- 综合每百万token成本：输入:输出 = 3:1 ---- */
+function blendOf(m){ return (m.inputPm*3 + m.outputPm*1) / 4; }
+
+/* ---- 渲染依赖的派生数据 ---- */
+const TAG_CN = { text:"纯文本", multimodal:"多模态", longctx:"长上下文", code:"代码生成",
+  reasoning:"推理", research:"深度研究", agent:"智能体", voice:"语音", realtime:"实时" };
+const TYPE_CN = {
+  "通用旗舰":"通用旗舰","通用均衡":"通用均衡","性价比":"性价比","轻量":"轻量",
+  "编程":"编程","多模态":"多模态","语音":"语音","推理":"推理",
+};
+const BILL_CN = { "per_token":"按量Token", package:"套餐包", subscription:"月度订阅" };
+const BILL_GRP = { "per_token":"按量Token", package:"套餐包", subscription:"月度订阅" };
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+/* 综合成本极值区间（只计算一次，缓存） */
+let _blendRange = null;
+function blendRange(){
+  if(_blendRange) return _blendRange;
+  let min = Infinity, max = -Infinity;
+  MODELS.forEach(m=>{ const b = blendOf(m); if(b < min) min = b; if(b > max) max = b; });
+  _blendRange = [min, max];
+  return _blendRange;
+}
+function blendClass(v){
+  const r0 = blendRange();
+  const span = (r0[1] - r0[0]) || 1;
+  const r = (v - r0[0]) / span;
+  return r < 0.02 ? "low" : (r > 0.55 ? "high" : "mid");
+}
+
+/* ---- 表格行渲染 ---- */
+function modelRow(m){
+  const tags = m.tags.map(t=>`<span class="tag t-${t}">${TAG_CN[t]||t}</span>`).join("");
+  const b = blendOf(m);
+  const btag = BILL_CN[m.billing] || m.billing;
+  const bgrp = BILL_GRP[m.billing] || m.billing;
+  const bilingCls = m.billing==="per_token"?"token":(m.billing==="package"?"pack":"sub");
+  const src = m.priceSrc ? `<div class="src">${esc(m.priceSrc)}</div>` : "";
+  const srcLine = `来源：${esc(m.vendorTag||"—")} · 更新 ${esc(m.updated||"—")}`;
+  const unit = m.cnyOnly ? "元" : "元";
+  return `<tr>
+    <td class="num"><span class="blend ${blendClass(b)}">¥${b.toFixed(1)}</span>
+      <div class="src">3输入:1输出加权</div></td>
+    <td class="num price-input"><span class="p">¥${m.inputPm}</span><span class="u">/百万</span></td>
+    <td class="num price-input"><span class="p">¥${m.outputPm}</span><span class="u">/百万</span></td>
+    <td><div class="model-name">${esc(m.short)}</div>
+        <div class="model-sub">${esc(m.vendorZh)} · ${esc(m.family)}</div></td>
+    <td><span class="type-tag">${esc(TYPE_CN[m.type]||m.type)}</span></td>
+    <td class="ctx">${esc(m.context)}</td>
+    <td>${tags}</td>
+    <td><span class="billing ${bilingCls}">${esc(bgrp)}</span></td>
+    <td><div class="src">${src}${srcLine}</div></td>
+    <td><div class="desc">${esc(m.desc)}</div></td>
+  </tr>`;
+}
+
+/* ---- 过滤 ---- */
+function filtered(){
+  let list = MODELS.slice();
+  const q = state.search.trim().toLowerCase();
+  if(q){
+    list = list.filter(m =>
+      (m.name||"").toLowerCase().includes(q) || (m.short||"").toLowerCase().includes(q) ||
+      (m.vendor||"").toLowerCase().includes(q) || (m.vendorZh||"").toLowerCase().includes(q) ||
+      (m.family||"").toLowerCase().includes(q) || (m.tags||[]).some(t=>t.includes(q)) ||
+      (m.type||"").toLowerCase().includes(q)
+    );
+  }
+  if(state.vendors.size) list = list.filter(m=>state.vendors.has(m.vendorZh));
+  if(state.types.size) list = list.filter(m=>state.types.has(m.type));
+  if(state.tags.size) list = list.filter(m=>m.tags.some(t=>state.tags.has(t)));
+  if(state.billings.size) list = list.filter(m=>state.billings.has(m.billing));
+  if(state.platforms.size) list = list.filter(m=>state.platforms.has(m.vendorTag));
+  list.sort((a,b)=>{
+    const va=blendOf(a), vb=blendOf(b);
+    return state.dir==="asc" ? va-vb : vb-va;
+  });
+  return list;
+}
+
+/* ---- 渲染表格 ---- */
+function renderTable(){
+  const list = filtered();
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = list.map(modelRow).join("") ||
+    `<tr><td class="empty" colspan="10">没有符合条件的模型。</td></tr>`;
+  document.getElementById("empty").style.display = list.length ? "none" : "block";
+  document.getElementById("shown").textContent = list.length;
+  document.getElementById("total").textContent = MODELS.length;
+  /* 已应用筛选计数（含搜索词） */
+  const af = document.getElementById("active-filters");
+  if(af){
+    const n = state.vendors.size + state.types.size + state.tags.size
+            + state.billings.size + state.platforms.size + (state.search.trim() ? 1 : 0);
+    if(n){ af.className = "af"; af.textContent = " · 已应用 " + n + " 项筛选"; }
+    else { af.className = ""; af.textContent = ""; }
+  }
+  // 表头箭头方向（对缺失的 .arrow 做补建与判空，避免抛错中断后续绑定）
+  const heads = document.querySelectorAll("thead th.sortable");
+  heads.forEach(th=>{
+    let up = th.querySelector(".arrow");
+    if(!up){ up = document.createElement("span"); up.className = "arrow"; th.appendChild(up); }
+    up.textContent = th.dataset.k === "blend" ? (state.dir === "asc" ? "▲" : "▼") : "";
+  });
+}
+
+/* ---- 计费方式（视图切换） ---- */
+const BILL_VIEW_LABEL = { token:"按量计费", subs:"云平台套餐", agent:"Agent 桌面订阅" };
+const BILL_VIEW_SUB = {
+  token:"69 款模型按量计费，含 5 维筛选与综合成本排序",
+  subs:"按积分 / 请求数 / Token 额度计费，展示官方换算口径的等效单价",
+  agent:"按席位或额度计费，模型清单不同，无官方 Credit→token 换算口径"
+};
+const MODELS_TAG_CN = { text:"纯文本", multimodal:"多模态", longctx:"长上下文", code:"代码生成",
+  reasoning:"推理", research:"深度研究", agent:"智能体", voice:"语音", realtime:"实时" };
+
+/* 从价格字符串提取主数值（¥39 / ¥39/月（原¥60）→ 39） */
+function parsePrice(str){
+  if(!str) return null;
+  const m = String(str).replace(/[¥$,\s]/g,"").match(/(\d+(?:\.\d+)?)/);
+  return m ? parseFloat(m[1]) : null;
+}
+
+/* 单张套餐卡：档位表 + 模型清单 + 备注 */
+function renderSubsCard(s, withModels){
+  const kindCls = (s.kind === "套餐" || s.kind === "平台") ? "plat" : "sub";
+  const plans = s.plans.map(p=>{
+    let extra = "";
+    if(s.unit){
+      const perM = unitOf(p.price, p.cnyPm);
+      if(perM) extra = `<div class="feat">等效 ${perM}</div>`;
+    }
+    return `<div class="plan">
+      <div><div class="tier">${esc(p.tier)}</div><div class="feat">${esc(p.feature)}</div>${extra}</div>
+      <div class="price">${esc(p.price)}</div></div>`;
+  }).join("");
+  let modelsBlock = "";
+  if(withModels && Array.isArray(s.models) && s.models.length){
+    const rows = s.models.map(m=>{
+      const tags = (m.tags||[]).map(t=>`<span class="md-tag">${esc(MODELS_TAG_CN[t]||t)}</span>`).join("");
+      return `<tr>
+        <td><div class="md-name">${esc(m.name)}</div><div class="md-src">${esc(m.src||"")}</div></td>
+        <td>${esc(m.type||"")}</td>
+        <td>${tags}</td>
+        <td class="md-ctx">${esc(m.context||"—")}</td>
+        <td class="md-price">${esc(m.perToken||"—")}</td>
+        <td class="md-desc">${esc(m.desc||"")}</td>
+      </tr>`;
+    }).join("");
+    modelsBlock = `<div class="sub-card-models-title">支持的模型清单（${s.models.length} 款）</div>
+      <table class="model-detail">
+        <thead><tr><th>模型</th><th>类型</th><th>能力</th><th>上下文</th><th>按量价</th><th>简介</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+  return `<div class="sub-card">
+    <div class="shead"><span>${esc(s.name)}</span><span class="kind ${kindCls}">${esc(s.kind)}</span></div>
+    <div class="sbody">${plans}${modelsBlock}</div>
+    ${s.note?`<div class="snote">${esc(s.note)}</div>`:""}
+  </div>`;
+}
+
+function unitOf(priceStr, cnyPm){
+  const v = cnyPm ? parsePrice(cnyPm) : parsePrice(priceStr);
+  if(!v) return null;
+  const perM = v / 1e6;
+  return perM >= 1 ? "¥" + perM.toFixed(2) + "/百万" : (perM*1000).toFixed(2) + "/千";
+}
+
+function renderSubsView(){
+  const grid = document.getElementById("sub-grid-subs");
+  const items = SUBSCRIPTIONS.filter(s=>s.kind==="套餐"||s.kind==="平台");
+  grid.innerHTML = items.map(s=>renderSubsCard(s, true)).join("");
+  const hint = document.getElementById("hint-subs");
+  if(hint) hint.innerHTML = `<b>${items.length} 组</b>套餐，覆盖积分制 / 请求数制 / Token 额度制多种计费口径，等效单价按各平台官方公示换算。`;
+}
+
+function renderAgentView(){
+  const grid = document.getElementById("sub-grid-agent");
+  const items = SUBSCRIPTIONS.filter(s=>s.kind!=="套餐" && s.kind!=="平台");
+  grid.innerHTML = items.map(s=>renderSubsCard(s, false)).join("");
+  const hint = document.getElementById("hint-agent");
+  if(hint) hint.innerHTML = `<b>${items.length} 组</b>桌面订阅，多按席位或"任务次数"计费，官方未公示 Credit→token 换算口径，请参考各档位 feature 描述。`;
+}
+
+function initSeg(){
+  const seg = document.getElementById("seg-billing");
+  if(!seg) return;
+  seg.querySelectorAll("button").forEach(b=>{
+    b.onclick = ()=>setMode(b.dataset.mode);
+  });
+}
+
+function setMode(mode){
+  state.mode = mode;
+  const hide = el => { if(el) el.style.display = "none"; };
+  const show = el => { if(el) el.style.display = ""; };
+  if(mode === "token"){
+    state.search = ""; state.vendors.clear(); state.types.clear();
+    state.tags.clear(); state.billings.clear(); state.platforms.clear();
+    const si = document.getElementById("search"); if(si) si.value = "";
+    document.querySelectorAll(".chip.on").forEach(c=>c.classList.remove("on"));
+    show(document.getElementById("controls"));
+    show(document.getElementById("stat"));
+    show(document.getElementById("tbl-wrap"));
+    hide(document.getElementById("view-subs"));
+    hide(document.getElementById("view-agent"));
+    renderTable();
+  } else if(mode === "subs"){
+    hide(document.getElementById("controls"));
+    hide(document.getElementById("stat"));
+    hide(document.getElementById("tbl-wrap"));
+    hide(document.getElementById("view-agent"));
+    show(document.getElementById("view-subs"));
+    renderSubsView();
+  } else {
+    hide(document.getElementById("controls"));
+    hide(document.getElementById("stat"));
+    hide(document.getElementById("tbl-wrap"));
+    hide(document.getElementById("view-subs"));
+    show(document.getElementById("view-agent"));
+    renderAgentView();
+  }
+  document.querySelectorAll("#seg-billing button").forEach(b=>{
+    b.classList.toggle("active", b.dataset.mode === mode);
+  });
+  const info = document.getElementById("bill-info");
+  if(info) info.textContent = BILL_VIEW_SUB[mode] || "";
+}
+
+/* ---- 版芯片生成 ---- */
+function buildChips(){
+  const vendors = [...new Set(MODELS.map(m=>m.vendorZh))].sort();
+  const types = [...new Set(MODELS.map(m=>m.type))].sort();
+  const tags = [...new Set(MODELS.flatMap(m=>m.tags))].filter(t=>TAG_CN[t]).sort();
+  const billings = ["per_token"];
+  /* 价格来源按覆盖模型数从多到少排，便于快速定位主流渠道 */
+  const platCount = {};
+  MODELS.forEach(m=>{ platCount[m.vendorTag] = (platCount[m.vendorTag]||0) + 1; });
+  const platforms = Object.keys(platCount).sort((a,b)=>platCount[b]-platCount[a]);
+  const boxes = {
+    "chip-vendor":vendors, "chip-type":types, "chip-tag":tags,
+    "chip-billing":billings, "chip-platform":platforms,
+  };
+  const keyMap = {
+    "chip-vendor":()=>state.vendors, "chip-type":()=>state.types, "chip-tag":()=>state.tags,
+    "chip-billing":()=>state.billings, "chip-platform":()=>state.platforms,
+  };
+  const labelMap = {
+    "chip-vendor":t=>t, "chip-type":t=>TYPE_CN[t]||t, "chip-tag":t=>TAG_CN[t]||t,
+    "chip-billing":()=>"按量Token", "chip-platform":t=>t,
+  };
+  const valMap = {
+    "chip-vendor":t=>t, "chip-type":t=>t, "chip-tag":t=>t,
+    "chip-billing":()=>"per_token", "chip-platform":t=>t,
+  };
+  for(const id in boxes){
+    const el=document.getElementById(id); el.innerHTML="";
+    boxes[id].forEach(item=>{
+      const b=document.createElement("button"); b.className="chip"; b.textContent=labelMap[id](item);
+      b.dataset.k=id; b.dataset.v=valMap[id](item);
+      b.onclick=(e)=>{
+        e.stopPropagation();
+        const set=keyMap[id](item); const v=valMap[id](item);
+        set.has(v)?set.delete(v):set.add(v);
+        el.querySelectorAll(".chip").forEach(c=>set.has(c.dataset.v)?c.classList.add("on"):c.classList.remove("on"));
+        renderTable();
+      };
+      el.appendChild(b);
+    });
+  }
+}
+
+/* ---- 错误提示（渲染/绑定出错时页面可见，便于诊断） ---- */
+function showError(err){
+  let bar = document.getElementById("err-bar");
+  if(!bar){
+    bar = document.createElement("div");
+    bar.id = "err-bar";
+    bar.style.cssText = "background:#fff1f2;border:1px solid #fda4af;color:#be123c;padding:10px 16px;border-radius:8px;font-size:13px;margin:0 0 12px;word-break:break-all";
+    document.querySelector(".wrap").prepend(bar);
+  }
+  bar.textContent = "⚠️ 渲染异常（交互仍可正常使用）：" + (err && err.message ? err.message : String(err));
+}
+
+/* ---- 初始化 ---- */
+function init(){
+  /* 1) 先绑定全部交互——放在任何渲染之前，确保渲染异常不会拖垮交互 */
+  document.getElementById("search").addEventListener("input",e=>{
+    state.search = e.target.value; renderTable();
+  });
+  document.getElementById("sort-asc").onclick = ()=>{
+    state.dir = "asc"; setActiveSort("asc"); renderTable();
+  };
+  document.getElementById("sort-desc").onclick = ()=>{
+    state.dir = "desc"; setActiveSort("desc"); renderTable();
+  };
+  document.getElementById("reset").onclick = resetAll;
+
+  /* 2) 再渲染 */
+  try{
+    document.getElementById("meta-updated").textContent = META.updated;
+    document.getElementById("pill-count").textContent = MODELS.length + " 款";
+    buildChips();
+    /* 计费方式分段：先注册分段控件，再激活初始模式（按量计费） */
+    initSeg();
+    setMode(state.mode);
+  }catch(err){ showError(err); throw err; }
+}
+
+function setActiveSort(dir){
+  document.getElementById("sort-asc").classList.toggle("active", dir === "asc");
+  document.getElementById("sort-desc").classList.toggle("active", dir === "desc");
+}
+
+function resetAll(){
+  state.search = "";
+  state.vendors.clear(); state.types.clear(); state.tags.clear(); state.billings.clear();
+  state.platforms.clear();
+  document.getElementById("search").value = "";
+  document.querySelectorAll(".chip").forEach(c=>c.classList.remove("on"));
+  state.dir = "asc";
+  setActiveSort("asc");
+  /* 重置回到按量计费视图（内部会重置筛选并重新渲染表格） */
+  setMode("token");
+}
+
+/* 全局兜底：未捕获异常也在页面上可见（非浏览器环境跳过） */
+if(typeof window.addEventListener === "function"){
+  window.addEventListener("error", ev=>{ showError(ev.error || ev.message); });
+}
+
+/* 健壮启动：DOMContentLoaded 可能已派发（script 在 body 末尾） */
+if(document.readyState === "loading"){
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}
+</script>
+</body>
+</html>

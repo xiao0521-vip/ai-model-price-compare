@@ -1,0 +1,77 @@
+# ============================================================
+# 每日自动更新模型价格
+# ============================================================
+# 触发方式：
+#   1. 定时：工作日 08:00 UTC (北京 16:00) 自动运行
+#   2. 手动：GitHub Actions → Update prices → Run workflow
+#
+# 需要配置的 GitHub Secrets：
+#   OPENAI_API_KEY       - OpenAI API 密钥（可选，仅用于校验模型列表）
+#   ANTHROPIC_API_KEY    - Anthropic API 密钥（可选）
+#   SILICONFLOW_API_KEY  - 硅基流动 API 密钥（推荐，有官方模型列表接口）
+#
+# 无需 API Key 的平台通过 HTML 爬虫抓取定价页面。
+# ============================================================
+name: Daily Price Update
+
+on:
+  schedule:
+    # 工作日 08:00 UTC = 北京 16:00
+    - cron: '0 8 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  update-prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      # 1) 拉取代码
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # 2) 安装 Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 3) 安装依赖
+      - name: Install dependencies
+        run: npm ci
+
+      # 4) 执行价格抓取 + 更新 data.js
+      - name: Fetch & update prices
+        run: node scripts/fetch-prices.js
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+
+      # 5) 如果有变更则创建 PR（无变更则跳过）
+      - name: Create Pull Request
+        if: success()
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: auto-update-prices
+          commit-message: "chore: update model prices (run #${{ github.run_number }})"
+          title: "📊 Auto-update: model prices"
+          body: |
+            自动抓取各平台最新模型价格并更新 data.js。
+
+            **运行信息**
+            - 触发：${{ github.event_name }}
+            - 运行编号：${{ github.run_number }}
+            - 时间：${{ github.run_at }}
+
+            ---
+
+            查看下方 diff 确认价格变更是否合理。合并后 Cloudflare Pages 将自动部署。
+          labels: "auto-update,prices"
