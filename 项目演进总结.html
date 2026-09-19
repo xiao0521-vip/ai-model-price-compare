@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目演进总结 —— 从纯静态网页到每日自动刷新</title>
+<style>
+  :root{
+    --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+    --blue:#2563eb; --blue-bg:#eff6ff; --green:#16a34a; --green-bg:#f0fdf4;
+    --amber:#b45309; --amber-bg:#fffbeb; --red:#b91c1c; --red-bg:#fef2f2;
+    --purple:#7c3aed; --purple-bg:#f5f3ff;
+  }
+  *{box-sizing:border-box}
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:var(--ink);
+    margin:0;background:#f8fafc;line-height:1.75;font-size:15px}
+  .wrap{max-width:900px;margin:0 auto;padding:32px 20px 80px;background:#fff;
+    min-height:100vh;box-shadow:0 0 24px rgba(0,0,0,.05)}
+  h1{font-size:26px;margin:8px 0 4px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:28px}
+  h2{font-size:20px;border-left:4px solid var(--blue);padding-left:12px;margin:44px 0 16px}
+  h3{font-size:16px;margin:26px 0 10px;color:#111827}
+  p{margin:8px 0}
+  code{background:#f1f5f9;border:1px solid var(--line);border-radius:4px;
+    padding:1px 6px;font-family:Consolas,monospace;font-size:13px;color:#0f172a}
+  pre{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:14px 16px;
+    overflow-x:auto;font-size:13px;line-height:1.6}
+  pre code{background:none;border:none;color:inherit;padding:0}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:#f8fafc;font-weight:600}
+  .toc{background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:10px;padding:16px 22px}
+  .toc b{color:var(--blue)}
+  .toc ol{margin:6px 0 0;padding-left:22px}
+  .toc a{color:var(--blue);text-decoration:none}
+  /* 时间线 */
+  .timeline{position:relative;margin:20px 0 10px;padding-left:30px}
+  .timeline::before{content:"";position:absolute;left:9px;top:6px;bottom:6px;
+    width:3px;background:#cbd5e1;border-radius:2px}
+  .tl-item{position:relative;margin-bottom:22px}
+  .tl-item::before{content:"";position:absolute;left:-27px;top:7px;width:11px;height:11px;
+    border-radius:50%;background:var(--blue);border:2px solid #fff;box-shadow:0 0 0 2px #bfdbfe}
+  .tl-item.green::before{background:var(--green);box-shadow:0 0 0 2px #bbf7d0}
+  .tl-item.amber::before{background:var(--amber);box-shadow:0 0 0 2px #fde68a}
+  .tl-item.red::before{background:var(--red);box-shadow:0 0 0 2px #fecaca}
+  .tl-date{font-size:13px;color:var(--muted);font-weight:600}
+  .tl-title{font-weight:700;margin:2px 0}
+  .tl-body{color:#374151;font-size:14px}
+  /* 流程图 */
+  .flow{display:flex;flex-direction:column;gap:0;margin:18px 0}
+  .flow-row{display:flex;align-items:stretch;gap:0}
+  .fbox{border-radius:10px;padding:12px 16px;flex:1;font-size:13.5px;
+    border:1.5px solid;position:relative}
+  .fbox b{display:block;font-size:14.5px;margin-bottom:3px}
+  .f-github{background:var(--blue-bg);border-color:#93c5fd}
+  .f-run{background:var(--amber-bg);border-color:#fcd34d}
+  .f-data{background:var(--green-bg);border-color:#86efac}
+  .f-cf{background:var(--purple-bg);border-color:#c4b5fd}
+  .f-user{background:#f8fafc;border-color:#cbd5e1}
+  .farrow{align-self:center;text-align:center;color:var(--muted);
+    font-size:12px;padding:0 10px;min-width:86px;flex-shrink:0}
+  .farrow .a{font-size:20px;line-height:1;display:block;color:#94a3b8}
+  .fdown{text-align:center;color:#94a3b8;font-size:20px;line-height:1.2;padding:2px 0}
+  .fdown small{font-size:12px;color:var(--muted)}
+  .tag{display:inline-block;border-radius:20px;padding:1px 10px;font-size:12px;
+    font-weight:600;margin-right:6px}
+  .t-blue{background:var(--blue-bg);color:var(--blue)}
+  .t-green{background:var(--green-bg);color:var(--green)}
+  .t-amber{background:var(--amber-bg);color:var(--amber)}
+  .t-red{background:var(--red-bg);color:var(--red)}
+  .faq{border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:10px 0;background:#fcfcfd}
+  .faq b{color:var(--blue)}
+  .note{background:var(--amber-bg);border-left:4px solid #f59e0b;padding:10px 14px;
+    border-radius:0 8px 8px 0;font-size:14px;margin:12px 0}
+  .good{background:var(--green-bg);border-left:4px solid var(--green);padding:10px 14px;
+    border-radius:0 8px 8px 0;font-size:14px;margin:12px 0}
+  .kv{display:grid;grid-template-columns:170px 1fr;gap:6px 14px;font-size:14px;margin:10px 0}
+  .kv div:nth-child(odd){color:var(--muted)}
+  @media(max-width:700px){
+    .flow-row{flex-direction:column}
+    .farrow{transform:rotate(90deg);min-height:52px;align-self:center}
+    .kv{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>项目演进总结</h1>
+<div class="sub">AI 大模型性价比对比站 · 从纯静态网页到每日自动刷新的完整过程 · 2026-09-19</div>
+
+<div class="toc">
+  <b>目录</b>
+  <ol>
+    <li><a href="#bg">项目背景：这是个什么网站</a></li>
+    <li><a href="#flow">实现流程：数据从哪来、怎么自动更新（重点答疑）</a></li>
+    <li><a href="#deploy">部署方式：如何绑定 Cloudflare Pages 公开访问</a></li>
+    <li><a href="#mech">当前运行机制：自动刷新的触发与整体流程</a></li>
+    <li><a href="#tl">演进时间线（关键阶段回顾）</a></li>
+    <li><a href="#faq">常见疑问解答</a></li>
+  </ol>
+</div>
+
+<!-- ================= 1 背景 ================= -->
+<h2 id="bg">一、项目背景：这是个什么网站</h2>
+
+<p>这是一个对比 <b>76 款主流 AI 大模型价格</b> 的公开网站，地址：
+<b>https://xuxiao-ai-model.pages.dev</b>。用户可以在上面查到每款模型「每百万 token（约 75 万字）收多少钱」，并按综合成本排序、按厂商/能力筛选，还能对比 24 组云平台套餐和 Agent 桌面订阅哪个更划算。</p>
+
+<p>整个网站本质上只有 <b>两个文件</b>：</p>
+<table>
+  <tr><th>文件</th><th>内容</th><th>类比</th></tr>
+  <tr><td><code>index.html</code></td><td>页面外观 + 全部交互逻辑（筛选、排序、切换视图）</td><td>商店的货架和装修</td></tr>
+  <tr><td><code>data.js</code></td><td>全部价格数据（76 款模型 + 24 组套餐）</td><td>货架上的商品</td></tr>
+</table>
+
+<p><b>演进要解决的核心问题</b>：早期版本里，价格是人工整理好写死在 <code>data.js</code> 里的。AI 模型价格变动频繁（今天降价、明天搞促销），人工维护既慢又容易错。于是项目经历了一次完整的演进——<b>从「人工更新」变成「每天下午 4 点机器人自动抓最新价格、自动更新、自动上线」</b>，全程不需要任何人在电脑前。</p>
+
+<!-- ================= 2 实现流程 ================= -->
+<h2 id="flow">二、实现流程：数据从哪来、怎么自动更新</h2>
+
+<h3>2.1 先回答最关键的问题：自动抓取时，访问的是 GitHub 上的文件还是本地文件？</h3>
+
+<div class="good">
+<b>答：访问的是 GitHub 仓库里的文件，和本地电脑没有任何关系。</b><br>
+每天运行任务时，GitHub 会把仓库完整复制一份到它的临时服务器上（这叫「检出」），所有抓取、修改、提交都发生在那台临时服务器里。任务跑完，临时环境即销毁。<b>本地电脑不需要开机，本地文件不参与自动更新。</b>本地目录只是开发者平时改代码用的「工作副本」。
+</div>
+
+<h3>2.2 数据从哪来</h3>
+
+<p>价格数据的来源是 <b>OpenRouter 的公开接口</b>（可以理解为一家「AI 模型超市」的公开价目表，任何人在浏览器打开 <code>https://openrouter.ai/api/v1/models</code> 都能看到）。它一次返回 446 个模型的实时价格，免密钥、免费。脚本从中挑出与我们表格匹配的模型，把「美元/token」换算成「元/每百万 token」后使用。</p>
+
+<h3>2.3 完整数据流转链路</h3>
+
+<p>一次自动更新，数据要走完下面这条链路（<b>注意：数据永远只经过 GitHub，不经过本地电脑</b>）：</p>
+
+<div class="flow">
+  <div class="flow-row">
+    <div class="fbox f-run"><b>① GitHub 临时服务器</b>定时任务触发，把仓库最新代码完整复制一份过来</div>
+    <div class="farrow"><span class="a">→</span>运行脚本</div>
+    <div class="fbox f-data"><b>② OpenRouter 公开接口</b>脚本发请求，拿回 446 个模型的实时价格</div>
+  </div>
+  <div class="fdown">↓ <small>价格经过三道质检</small></div>
+  <div class="flow-row">
+    <div class="fbox f-run"><b>③ 三道防线过滤</b>单位闸门（防算错倍数）→ 严格匹配（防止张冠李戴）→ 数据体检（防异常波动入库）</div>
+    <div class="farrow"><span class="a">→</span>通过质检</div>
+    <div class="fbox f-data"><b>④ 修改 data.js</b>只改有变动的价格数字，注释和排版原样保留</div>
+  </div>
+  <div class="fdown">↓ <small>有变更才提交，无变更就此结束</small></div>
+  <div class="flow-row">
+    <div class="fbox f-github"><b>⑤ 提交回 GitHub 仓库</b>机器人（price-bot）把改好的 data.js 推回 main 分支，形成一条新提交记录</div>
+    <div class="farrow"><span class="a">→</span>监听到更新</div>
+    <div class="fbox f-cf"><b>⑥ Cloudflare Pages 自动部署</b>从仓库取最新文件，1~2 分钟内发布到公网</div>
+  </div>
+  <div class="fdown">↓</div>
+  <div class="flow-row">
+    <div class="fbox f-user" style="max-width:420px;margin:0 auto"><b>⑦ 全世界访问者</b>打开 xuxiao-ai-model.pages.dev，看到的就是最新价格</div>
+  </div>
+</div>
+
+<div class="note">
+<b>一个容易误解的点</b>：机器人改的不是「线上网站」，而是「仓库里的 data.js」。线上网站是 Cloudflare 从仓库<b>抄送</b>过去的副本——仓库一变，副本跟着重做。所以链路的终点永远是「GitHub 仓库」，它是唯一的数据源头。
+</div>
+
+<!-- ================= 3 部署 ================= -->
+<h2 id="deploy">三、部署方式：绑定 Cloudflare Pages 公开访问</h2>
+
+<h3>3.1 为什么选 Cloudflare Pages</h3>
+<p>纯静态网站（只有 HTML/JS，没有后端程序）托管在 Cloudflare Pages 上：<b>免费、全球访问快、自带 HTTPS 证书、不需要自己买服务器</b>。它最大的特点是支持「Git 集成」——监控 GitHub 仓库，仓库一有新提交就自动重新发布。</p>
+
+<h3>3.2 绑定配置（一次性操作）</h3>
+<p>在 Cloudflare 控制台新建 Pages 项目并授权 GitHub 后，只填了这几项：</p>
+<table>
+  <tr><th>配置项</th><th>填的值</th><th>含义</th></tr>
+  <tr><td>仓库</td><td><code>xiao0521-vip/ai-model-price-compare</code></td><td>监听哪个仓库</td></tr>
+  <tr><td>Production branch</td><td><code>main</code></td><td>只看 main 分支的变化</td></tr>
+  <tr><td>Build command</td><td><b>留空</b></td><td>纯静态站，无需编译</td></tr>
+  <tr><td>Build output directory</td><td><code>deploy/</code></td><td>只发布这个文件夹里的内容（不含脚本和密钥相关文件）</td></tr>
+</table>
+
+<div class="note">
+<b>为什么有 deploy/ 目录</b>：仓库根目录里混着抓价脚本、测试文件、工作流配置，这些不该出现在公网上。所以网站文件单独放一份在 <code>deploy/</code> 文件夹里作为「发布目录」，Cloudflare 只看这个文件夹。代价是：每次改完根目录的 index.html / data.js，必须复制一份到 deploy/（已写进运维手册）。
+</div>
+
+<h3>3.3 域名</h3>
+<p>上线地址 <code>xuxiao-ai-model.pages.dev</code> 由 Cloudflare 免费分配（前缀 = 项目名，创建时定死，全平台唯一）。任何人无需登录即可访问；以后也可以绑定自有域名。</p>
+
+<!-- ================= 4 运行机制 ================= -->
+<h2 id="mech">四、当前运行机制：自动刷新的触发与整体流程</h2>
+
+<h3>4.1 两种触发方式</h3>
+<table>
+  <tr><th>方式</th><th>配置</th><th>说明</th></tr>
+  <tr><td><span class="tag t-blue">定时</span>自动触发</td><td><code>cron: '0 8 * * *'</code></td><td><b>每天 UTC 08:00 = 北京时间 16:00</b>（含周末）。GitHub 的排队调度允许 15~60 分钟延迟，属正常现象</td></tr>
+  <tr><td><span class="tag t-amber">手动</span>触发</td><td>Actions 页面点 Run workflow</td><td>调试、补跑时用，效果与定时完全一致</td></tr>
+</table>
+
+<h3>4.2 每次运行的 10 个步骤</h3>
+<pre>
+1  Set up job            启动临时 Ubuntu 容器
+2  Checkout              把仓库最新代码复制进容器          ← 全程只用仓库文件
+3  Sync to latest main   强制同步到 main 最顶端（防版本错位）
+4  Setup Node.js         安装 Node 20 环境
+5  Install dependencies  npm ci 安装 axios/cheerio（约 20 秒）
+6  Fetch & update prices 抓 OpenRouter → 过三道防线 → 改 data.js
+7  Verify data.js        数据体检：字段完整 + 价格区间 + 波动检测
+8  Show diff             打印本次改了哪几行
+9  Commit & push         有变更 → 机器人提交回 main；无变更 → 跳过
+10 运行摘要              全部步骤日志写入 Summary 页，出问题一眼可见
+</pre>
+
+<h3>4.3 两种运行结果</h3>
+<table>
+  <tr><th>结果</th><th>现象</th><th>后续</th></tr>
+  <tr><td><span class="tag t-green">有价格变动</span></td><td>Summary 显示「共更新 N 款」，生成新提交</td><td>Cloudflare 自动部署，1~2 分钟后线上生效</td></tr>
+  <tr><td><span class="tag t-blue">价格无变化</span></td><td>Summary 显示「价格无变化，跳过提交」</td><td>不产生提交、不重新部署；<b>页面上的「更新时间」保持原样是正常的</b>——它只在价格真实变动时前进</td></tr>
+</table>
+
+<h3>4.4 保证「不写错数据」的三道防线</h3>
+<table>
+  <tr><th>防线</th><th>拦什么</th><th>真实案例</th></tr>
+  <tr><td><span class="tag t-red">单位闸门</span></td><td>换算倍数错误的价格（超出合理区间 / 波动超 4 倍直接丢弃）</td><td>曾把 Google 促销价 $1.2014/百万 误乘一百万倍变成 ¥852 万——被拦下后根治</td></tr>
+  <tr><td><span class="tag t-red">严格匹配</span></td><td>名字对不上的模型（碎片名、促销变体、批量折扣价一律不采信）</td><td>碎片名 "2.0" 曾误配到「美团 LongCat 2.0」写入无关价格</td></tr>
+  <tr><td><span class="tag t-red">提交前体检</span></td><td>任何漏检的异常波动，直接<b>阻止整个提交</b></td><td>脏数据从未上过线；官方价锁定的模型（GPT-5.6 Sol、DeepSeek 两款）也在这一层保护</td></tr>
+</table>
+
+<!-- ================= 5 时间线 ================= -->
+<h2 id="tl">五、演进时间线（关键阶段回顾）</h2>
+
+<div class="timeline">
+  <div class="tl-item">
+    <div class="tl-date">2026-09-18 之前</div>
+    <div class="tl-title">阶段 0：纯静态 + 人工更新</div>
+    <div class="tl-body">完成 69 款模型 + 24 组套餐的数据整理与页面开发（含三视图切换、移动端适配）。上线方式是把两个文件手动打包拖拽上传到 Cloudflare，价格变动全靠人工改。</div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-date">2026-09-18 白天</div>
+    <div class="tl-title">阶段 1：建立 GitHub 仓库</div>
+    <div class="tl-body">创建仓库 <code>xiao0521-vip/ai-model-price-compare</code>，网站文件 + 抓价脚本 + 定时任务配置全部推上去。GitHub 从此成为项目的「唯一底账」。</div>
+  </div>
+  <div class="tl-item amber">
+    <div class="tl-date">2026-09-18 下午</div>
+    <div class="tl-title">阶段 2：定时任务第一版（走弯路）</div>
+    <div class="tl-body">最初用「机器人创建 Pull Request、人工合并」方案，被权限拦住，且与「全自动」目标矛盾——每天还得人工点一次合并。<b>改版为直接提交 main</b>：抓完价、通过体检就直接推送，彻底无人值守。</div>
+  </div>
+  <div class="tl-item red">
+    <div class="tl-date">2026-09-18 晚 ~ 09-19</div>
+    <div class="tl-title">阶段 3：实战暴露问题，逐个根治</div>
+    <div class="tl-body">连续三次真实事故把系统打磨成型：① Google 价格被误乘一百万倍（建单位闸门）；② 碎片模型名误配（建严格匹配规则）；③ OpenRouter 促销变体价混入（建人工核实的 skip 排除名单）。期间完成了对全部抓取代码的 12 项缺陷审查修复。</div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-date">2026-09-19 03:53</div>
+    <div class="tl-title">阶段 4：接入 Cloudflare Pages，正式公网上线</div>
+    <div class="tl-body">从手动拖拽上传改为 Git 集成部署（新项目名 <code>xuxiao-ai-model</code>）。此后仓库 main 每次变化都会自动发布，无需任何手动上传。</div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-date">2026-09-19 下午</div>
+    <div class="tl-title">阶段 5：定时频率升级 + 首次全自动运行成功</div>
+    <div class="tl-body">发现周末不运行导致数据停滞，把定时从「仅工作日」改为<b>每天</b>。当天 16:09，每日版定时任务首次成功运行——至此「每天下午自动更新价格并发布」的目标完整达成。</div>
+  </div>
+</div>
+
+<!-- ================= 6 FAQ ================= -->
+<h2 id="faq">六、常见疑问解答</h2>
+
+<div class="faq"><b>Q：自动更新时需要我的电脑开机吗？</b><br>
+A：不需要。一切发生在 GitHub 的服务器上，本地电脑只用于开发者改代码。</div>
+
+<div class="faq"><b>Q：机器人怎么有权限往仓库提交代码？</b><br>
+A：GitHub Actions 自带仓库写入身份（github-actions[bot]），只需在仓库设置里把 Workflow permissions 设为「Read and write」一次性授权。</div>
+
+<div class="faq"><b>Q：机器人抓错了价格怎么办？</b><br>
+A：三道防线让它几乎写不进错价；万一写入，仓库保留完整历史，可以一键回退到任意一天的版本。已被人工核实「报价不可信」的模型加入了永久排除名单。</div>
+
+<div class="faq"><b>Q：为什么有时打开网站，更新日期好几天没变？</b><br>
+A：说明这几天<b>所有模型价格都没变</b>（机器人每天照常核验，只是没有变化就不产生提交）。可在仓库 Actions 页面查看每天 16 点的运行记录确认。</div>
+
+<div class="faq"><b>Q：想增加新的数据源或新模型，改哪里？</b><br>
+A：数据源配置在 <code>scripts/config.js</code>，模型数据在 <code>data.js</code>。详细规则见同目录的《交接文档.md》。</div>
+
+<p style="margin-top:36px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:14px">
+文档生成于 2026-09-19 · 配套阅读：《交接文档.md》（面向二开的文件清单与运维手册）</p>
+
+</div>
+</body>
+</html>
