@@ -617,7 +617,7 @@ var MODELS = [
 {
   name: "Kimi-K3", short: "月之暗面 Kimi K3", family: "Kimi K3",
   vendor: "Moonshot", vendorZh: "月之暗面", type: "通用旗舰", billing: "per_token",
-  inputPm: 14.6934, outputPm: 82.2833, cnyOnly: true, context: "100W",
+  inputPm: 12.07, outputPm: 60.35, cnyOnly: true, context: "100W",
   tags: ["text","multimodal","code","reasoning","longctx"],
   vendorTag: "阿里云百炼/官方",
   priceSrc: "阿里百炼在售价（¥20/¥100），官方API另计；2.8万亿参数、100万token上下文、原生视觉",
