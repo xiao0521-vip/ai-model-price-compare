@@ -94,6 +94,7 @@
   .chips::-webkit-scrollbar-track{background:transparent}
   .chips::-webkit-scrollbar-thumb{background:#c3ccda;border-radius:3px}
   .chips::-webkit-scrollbar-thumb:hover{background:#9aa7bb}
+  #side-nav{display:none}
   .chip{flex:0 0 auto;white-space:nowrap;border:1px solid var(--line);background:var(--chip);
     border-radius:20px;padding:4px 12px;font-size:12.5px;cursor:pointer;user-select:none;
     transition:.15s;color:var(--ink)}
@@ -292,6 +293,18 @@
     .model-detail thead th{padding:6px 8px;font-size:10.5px}
     .model-detail tbody td{padding:6px 8px;font-size:11px}
     .md-desc{max-width:120px}
+
+    /* 侧边厂商导航（手机窄屏） */
+    #side-nav{display:flex;flex-direction:column;gap:2px;
+      position:fixed;left:0;top:45%;transform:translateY(-50%) translateX(-110%);
+      z-index:60;background:rgba(255,255,255,.96);border:1px solid var(--line);border-left:none;
+      border-radius:0 14px 14px 0;padding:8px 4px;max-height:60vh;overflow-y:auto;
+      box-shadow:2px 4px 16px rgba(15,30,60,.18);transition:transform .28s ease;backdrop-filter:blur(6px)}
+    #side-nav.show{transform:translateY(-50%) translateX(0)}
+    #side-nav button{border:none;background:transparent;border-radius:8px;padding:5px 5px;
+      font-size:10.5px;line-height:1.25;cursor:pointer;color:#5c6a7d;white-space:nowrap;text-align:center}
+    #side-nav button.active{background:var(--accent);color:#fff;font-weight:600}
+    #tbl-wrap tr{scroll-margin-top:48px}
   }
 </style>
 </head>
@@ -402,6 +415,8 @@
   </footer>
 </div>
 
+<nav id="side-nav" aria-label="厂商导航"></nav>
+
 <script src="data.js"></script>
 <script>
 "use strict";
@@ -456,7 +471,7 @@ function modelRow(m){
   const src = m.priceSrc ? `<div class="src">${esc(m.priceSrc)}</div>` : "";
   const srcLine = `来源：${esc(m.vendorTag||"—")} · 更新 ${esc(m.updated||"—")}`;
   const unit = m.cnyOnly ? "元" : "元";
-  return `<tr>
+  return `<tr data-vendor="${esc(m.vendorZh||'')}">
     <td class="num"><span class="blend ${blendClass(b)}">¥${b.toFixed(1)}</span>
       <div class="src">3输入:1输出加权</div></td>
     <td class="num price-input"><span class="p">¥${m.inputPm}</span><span class="u">/百万</span></td>
@@ -496,6 +511,60 @@ function filtered(){
   return list;
 }
 
+/* ---- 侧边厂商导航（手机窄屏：滚动联动 + 停滑自动收起） ---- */
+const sideNavEl = document.getElementById("side-nav");
+let navHideTimer = null;
+
+function renderSideNav(){
+  if(!sideNavEl) return;
+  const seen = new Set();
+  const vendors = [];
+  filtered().forEach(m=>{
+    const v = m.vendorZh || "其他";
+    if(!seen.has(v)){ seen.add(v); vendors.push(v); }
+  });
+  sideNavEl.innerHTML = vendors.map(v=>
+    `<button data-vendor="${esc(v)}">${esc(v)}</button>`).join("");
+}
+
+function currentMode(){
+  const b = document.querySelector("#seg-billing button.active");
+  return b ? b.dataset.mode : "token";
+}
+function heroBottom(){
+  const h = document.querySelector("header.top");
+  return h ? h.offsetTop + h.offsetHeight : 0;
+}
+function navShow(){ sideNavEl.classList.add("show"); }
+function navHide(){ sideNavEl.classList.remove("show"); }
+
+function sideSpy(){
+  const rows = document.querySelectorAll("#tbody tr[data-vendor]");
+  if(!rows.length) return;
+  const TH = 50;
+  let cur = null;
+  rows.forEach(tr=>{
+    const r = tr.getBoundingClientRect();
+    if(r.top <= TH) cur = tr.dataset.vendor;
+  });
+  if(!cur) return;
+  sideNavEl.querySelectorAll("button").forEach(b=>{
+    const on = b.dataset.vendor === cur;
+    b.classList.toggle("active", on);
+    if(on) b.scrollIntoView({block:"nearest"});
+  });
+}
+
+function onPageScroll(){
+  if(!sideNavEl) return;
+  if(currentMode() !== "token"){ navHide(); return; }
+  if(window.scrollY < heroBottom()){ navHide(); return; }
+  navShow();
+  sideSpy();
+  clearTimeout(navHideTimer);
+  navHideTimer = setTimeout(navHide, 1000);
+}
+
 /* ---- 渲染表格 ---- */
 function renderTable(){
   const list = filtered();
@@ -520,6 +589,7 @@ function renderTable(){
     if(!up){ up = document.createElement("span"); up.className = "arrow"; th.appendChild(up); }
     up.textContent = th.dataset.k === "blend" ? (state.dir === "asc" ? "▲" : "▼") : "";
   });
+  renderSideNav();
 }
 
 /* ---- 计费方式（视图切换） ---- */
@@ -714,6 +784,17 @@ function init(){
     state.dir = "desc"; setActiveSort("desc"); renderTable();
   };
   document.getElementById("reset").onclick = resetAll;
+
+  /* 侧边厂商导航：滚动联动 + 点击跳转 */
+  if(sideNavEl){
+    window.addEventListener("scroll", onPageScroll, {passive:true});
+    sideNavEl.addEventListener("click", e=>{
+      const b = e.target.closest("button[data-vendor]");
+      if(!b) return;
+      const tr = document.querySelector(`#tbody tr[data-vendor="${b.dataset.vendor}"]`);
+      if(tr) tr.scrollIntoView({block:"start", behavior:"smooth"});
+    });
+  }
 
   /* 2) 再渲染 */
   try{
