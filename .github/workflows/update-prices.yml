@@ -35,8 +35,8 @@ name: Daily Price Update
 
 on:
   schedule:
-    # 工作日 08:00 UTC = 北京 16:00
-    - cron: '0 8 * * 1-5'
+    # 每天 08:00 UTC = 北京 16:00（含周末；无价格变化时自动跳过提交，不会产生空提交）
+    - cron: '0 8 * * *'
   workflow_dispatch:
 
 # 同一时间只允许一个更新任务，避免并发写冲突
