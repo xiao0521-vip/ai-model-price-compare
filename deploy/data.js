@@ -741,9 +741,9 @@ var MODELS = [
   vendor: "Meituan", vendorZh: "美团", type: "性价比", billing: "per_token",
   inputPm: 2.13, outputPm: 8.52, cnyOnly: false, context: "1.0M",
   tags: ["text","code","reasoning","longctx"],
-  vendorTag: "硅基流动",
-  priceSrc: "硅基流动在售价（$0.75/$2.95 折算）；2026-06-30 上线，最大输出 131K",
-  updated: "2026-09-18",
+  vendorTag: "OpenRouter",
+  priceSrc: "OpenRouter 在售价（官方限时促销 $0.30/$1.20，原价 $0.75/$2.95）；2026-06-30 上线，最大输出 131K",
+  updated: "2026-09-19",
   desc: "美团 LongCat 系列第二代，1049K 超长上下文、最大输出 131K，主打长文档处理与多步 Agent 编排，是互联网大厂自研模型的低价档代表。",
 },
 
