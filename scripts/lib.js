@@ -350,7 +350,8 @@ function isNoiseName(raw) {
   const s = String(raw == null ? '' : raw).toLowerCase().replace(/[\s_]+/g, ' ').trim();
 
   if (!s) return true;
-  if (s.length < 4) return true;                 // "2.0"、"G 4" 这类碎片
+  // 过短淘汰，但放行「短字母+数字」型正式型号名（o3 / o4 / r1 这类 OpenAI·DeepSeek 命名的模型名）
+  if (s.length < 4 && !/^[a-z]{1,3}\d{1,2}$/.test(s)) return true;
   if (/^[\d.\s\-_/]+$/.test(s)) return true;      // 纯数字，如 "2.0"、"0.5"、"3.1"
   if (/^(模型|名称|价格|单价|输入|输出|计费|单位|说明|备注|合计)$/.test(s)) return true;
   if (/^(model|models?|name|names?|price|pricing|input|output|token|tokens?|per|unit|total|free|paid|tier|plan|context|rpm|tpm)s?$/i.test(s)) return true;
@@ -425,23 +426,43 @@ function toTokens(v) {
 }
 
 /* 匹配时可忽略的词元：
- *   - 中文厂商词（美团 / 千问 / 智谱 / 月之暗面 / 混元 / 豆包…）
- *     本表的 short 会带中文厂商名，而源侧（OpenRouter 等）剥掉前缀后没有，故双侧都忽略。
+ *   - 厂商词（中文与英文都忽略）：本表 short 会带厂商名（「美团 LongCat 2.0」「Cohere Command A」），
+ *     而源侧（OpenRouter 等）剥掉前缀后往往没有，故双侧一并忽略。
+ *     ⚠️ 只忽略「厂商名」，绝不忽略 pro/mini/max/flash 这类档位词。
  *   - 版本/上架状态类修饰：latest / preview / chat / instruct / stable…
  *   - 纯 3~4 位数字（日期后缀，如 qwen3.8-max-0902 的 0902）
  * 注意：pro / mini / max / high / vision / exp / batch / flash / lite 等
  *       一律【不】忽略 —— 它们代表不同档位，忽略即误配。 */
 const HARMLESS_TOKENS = new Set(['latest', 'preview', 'chat', 'instruct', 'it', 'stable', 'v1', 'v2']);
+const VENDOR_TOKENS = new Set([
+  'cohere', 'amazon', 'mistral', 'mistralai', 'google', 'openai', 'anthropic',
+  'deepseek', 'moonshot', 'moonshotai', 'minimax', 'tencent', 'baidu', 'bytedance',
+  'meta', 'nvidia', 'microsoft', 'xai', 'zai', 'zhipu', 'qwen', 'alibaba',
+]);
 const CJK_ONLY_RE = /^[\u4e00-\u9fa5]+$/;
 const DATE_TOKEN_RE = /^\d{3,4}$/;
+const NUMERIC_RE = /^\d+(\.\d+)?$/;
 
 function coreTokens(v) {
-  return toTokens(v).filter(t => {
+  const kept = toTokens(v).filter(t => {
     if (CJK_ONLY_RE.test(t)) return false;
-    if (HARMLESS_TOKENS.has(t)) return false;
+    if (HARMLESS_TOKENS.has(t) || VENDOR_TOKENS.has(t)) return false;
     if (DATE_TOKEN_RE.test(t)) return false;
     return true;
   });
+  // 数字词元归一：源侧 "mistral-medium-3-5" 会被连字符拆成 '3','5'，而本表写 "3.5"，
+  // 若不归一就永远匹配不上。规则：相邻的纯数字词元合并，并去掉小数点，
+  // 于是 ['3','5'] 与 ['3.5'] 都归一为 ['35']。日期后缀已在上面过滤，不会与此规则打架。
+  const out = [];
+  for (const t of kept) {
+    const norm = NUMERIC_RE.test(t) ? t.replace(/\./g, '') : t;   // 数字：去掉小数点
+    if (NUMERIC_RE.test(t) && out.length && /^\d+$/.test(out[out.length - 1])) {
+      out[out.length - 1] += norm;                                 // 相邻数字合并
+    } else {
+      out.push(norm);
+    }
+  }
+  return out;
 }
 
 /** 核心词元集合是否完全一致（排序后逐一相等，且非空） */

@@ -130,6 +130,13 @@
   .tag.t-agent{background:#ecfeff;border-color:#b8ecf5;color:#0e7490}
   .tag.t-voice{background:#f5f3ff;border-color:#d8d3f7;color:#6d28d9}
   .tag.t-realtime{background:#fee2e2;border-color:#f9c0c0;color:#b91c1c}
+  /* 接口能力徽章：紧凑、低饱和，与「能力标签」（语义标签）在视觉上明显区分 */
+  .caps{display:flex;flex-wrap:wrap;gap:3px;max-width:190px}
+  .cap-badge{display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;
+    border-radius:4px;padding:1px 5px;font-size:10.5px;white-space:nowrap;line-height:1.5}
+  .cap-badge:hover{background:#e2e8f0;color:#1f2937}
+  .cap-none{display:inline-block;color:var(--muted);font-size:10.5px;border:1px dashed var(--line);
+    border-radius:4px;padding:1px 5px}
   td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
   .price-input{color:var(--ink)}
   .price-input .p{font-weight:700}
@@ -343,6 +350,9 @@
         <span class="flabel">能力</span><div class="chips" id="chip-tag"></div>
       </div>
       <div class="frow">
+        <span class="flabel">接口能力</span><div class="chips" id="chip-cap"></div>
+      </div>
+      <div class="frow">
         <span class="flabel">计费</span><div class="chips" id="chip-billing"></div>
       </div>
       <div class="frow">
@@ -365,6 +375,7 @@
           <th data-k="type" class="sortable">类型 <span class="arrow"></span></th>
           <th data-k="context" class="sortable">上下文 <span class="arrow"></span></th>
           <th>能力标签</th>
+          <th>接口能力</th>
           <th>计费模式</th>
           <th>参考价来源</th>
           <th>简介</th>
@@ -391,12 +402,13 @@
     <h3>⚖️ 数据口径与免责说明</h3>
     <ul>
       <li>所有按量价格已统一折算为「人民币 / 每百万 token」；外币按 1 USD ≈ ¥7.1 换算（2026-09 参考）。</li>
-      <li>顶部「计费方式」可切换 <b>按量计费 / 云平台套餐 / Agent 桌面订阅</b> 三视图：按量视图含全部模型与 5 维筛选，套餐视图按官方口径展开每档套餐的模型清单与等效单价，Agent 视图展示桌面工具订阅的档位与能力。</li>
+      <li>顶部「计费方式」可切换 <b>按量计费 / 云平台套餐 / Agent 桌面订阅</b> 三视图：按量视图含全部模型与 6 维筛选（厂商 / 类型 / 能力 / 接口能力 / 计费 / 价格来源），套餐视图按官方口径展开每档套餐的模型清单与等效单价，Agent 视图展示桌面工具订阅的档位与能力。</li>
       <li>积分/点数制套餐的「等效每百万 token 单价」口径：<b>阿里百炼</b> 按 qwen3.6-plus 官方示例（1 Credit ≈ 12,429 tokens）；<b>腾讯云</b> 按 DeepSeek 系标准抵扣口径；<b>小米 MiMo</b> 按 Omni 1x / Pro 2x / 4x 倍率；<b>火山方舟/百度千帆/移动云</b> 为按请求数计费（无官方 token 换算口径，仅供对比）。</li>
       <li>套餐价格含<b>限时活动价</b>（如火山方舟 Coding Plan 首两月 2.5 折 ¥9.9、腾讯云 Hy Lite 首月 ¥14、阿里云百炼组合购降价），活动多有名额与截止日期，实际以支付页为准。</li>
       <li>「参考价来源」列与「价格来源」筛选标注该价采集自哪个渠道（官方直连或第三方聚合平台）；同一模型跨平台价差可达数倍，采购前建议比对。</li>
       <li>已自动过滤官方已下线、连续 6 个月无版本或价格更新的停产旧模型，仅保留当前在售主推款。</li>
       <li>各模型均标注「模型类型 + 能力标签 + 上下文窗口 + 一行官方定位简介」。</li>
+<li><b>「能力标签」与「接口能力」的区别</b>：前者是人工判断的语义定位（擅长代码/推理/多模态…）；后者是<b>机器可验证的接口事实</b>（是否支持图像/文件/语音/视频输入、工具调用、结构化输出、深度推理参数），数据取自 OpenRouter 公开元数据（<code>input_modalities</code> / <code>supported_parameters</code>）并经脚本每日同步，标注「未核实」表示该平台未收录、尚待人工核对官方文档。</li>
       <li>价格为 <b>采集快照</b>，实时波动；商用前请务必以各平台官方定价页为准。本表不构成任何投资或采购建议。</li>
     </ul>
   </footer>
@@ -411,7 +423,7 @@ const FX = (window.META && META.fx) || 7.10;
 const state = {
   search: "",
   vendors: new Set(), types: new Set(), tags: new Set(), billings: new Set(),
-  platforms: new Set(),
+  platforms: new Set(), caps: new Set(),
   dir: "asc",
 };
 
@@ -421,6 +433,10 @@ function blendOf(m){ return (m.inputPm*3 + m.outputPm*1) / 4; }
 /* ---- 渲染依赖的派生数据 ---- */
 const TAG_CN = { text:"纯文本", multimodal:"多模态", longctx:"长上下文", code:"代码生成",
   reasoning:"推理", research:"深度研究", agent:"智能体", voice:"语音", realtime:"实时" };
+/* 接口能力：来自 OpenRouter 元数据（input_modalities / supported_parameters），机器可验证，非人工推断 */
+const CAP_CN = { vision:"图像输入", file:"文件输入", audio:"语音输入", video:"视频输入",
+  tools:"工具调用", json:"结构化输出", reasoning:"深度推理" };
+const CAP_ICON = { vision:"🖼", file:"📄", audio:"🔊", video:"🎬", tools:"🔧", json:"{ }", reasoning:"🧠" };
 const TYPE_CN = {
   "通用旗舰":"通用旗舰","通用均衡":"通用均衡","性价比":"性价比","轻量":"轻量",
   "编程":"编程","多模态":"多模态","语音":"语音","推理":"推理",
@@ -449,6 +465,8 @@ function blendClass(v){
 /* ---- 表格行渲染 ---- */
 function modelRow(m){
   const tags = m.tags.map(t=>`<span class="tag t-${t}">${TAG_CN[t]||t}</span>`).join("");
+  const caps = (m.caps||[]).map(c=>`<span class="cap-badge" title="${CAP_CN[c]||c}">${CAP_ICON[c]||""} ${CAP_CN[c]||c}</span>`).join("")
+    || `<span class="cap-none" title="OpenRouter 未收录该模型，能力待人工核实">未核实</span>`;
   const b = blendOf(m);
   const btag = BILL_CN[m.billing] || m.billing;
   const bgrp = BILL_GRP[m.billing] || m.billing;
@@ -466,6 +484,7 @@ function modelRow(m){
     <td><span class="type-tag">${esc(TYPE_CN[m.type]||m.type)}</span></td>
     <td class="ctx">${esc(m.context)}</td>
     <td>${tags}</td>
+    <td><div class="caps">${caps}</div></td>
     <td><span class="billing ${bilingCls}">${esc(bgrp)}</span></td>
     <td><div class="src">${src}${srcLine}</div></td>
     <td><div class="desc">${esc(m.desc)}</div></td>
@@ -481,12 +500,14 @@ function filtered(){
       (m.name||"").toLowerCase().includes(q) || (m.short||"").toLowerCase().includes(q) ||
       (m.vendor||"").toLowerCase().includes(q) || (m.vendorZh||"").toLowerCase().includes(q) ||
       (m.family||"").toLowerCase().includes(q) || (m.tags||[]).some(t=>t.includes(q)) ||
+      (m.caps||[]).some(c=>(CAP_CN[c]||c).includes(q)) ||
       (m.type||"").toLowerCase().includes(q)
     );
   }
   if(state.vendors.size) list = list.filter(m=>state.vendors.has(m.vendorZh));
   if(state.types.size) list = list.filter(m=>state.types.has(m.type));
   if(state.tags.size) list = list.filter(m=>m.tags.some(t=>state.tags.has(t)));
+  if(state.caps.size) list = list.filter(m=>(m.caps||[]).some(c=>state.caps.has(c)));
   if(state.billings.size) list = list.filter(m=>state.billings.has(m.billing));
   if(state.platforms.size) list = list.filter(m=>state.platforms.has(m.vendorTag));
   list.sort((a,b)=>{
@@ -501,14 +522,14 @@ function renderTable(){
   const list = filtered();
   const tbody = document.getElementById("tbody");
   tbody.innerHTML = list.map(modelRow).join("") ||
-    `<tr><td class="empty" colspan="10">没有符合条件的模型。</td></tr>`;
+    `<tr><td class="empty" colspan="11">没有符合条件的模型。</td></tr>`;
   document.getElementById("empty").style.display = list.length ? "none" : "block";
   document.getElementById("shown").textContent = list.length;
   document.getElementById("total").textContent = MODELS.length;
   /* 已应用筛选计数（含搜索词） */
   const af = document.getElementById("active-filters");
   if(af){
-    const n = state.vendors.size + state.types.size + state.tags.size
+    const n = state.vendors.size + state.types.size + state.tags.size + state.caps.size
             + state.billings.size + state.platforms.size + (state.search.trim() ? 1 : 0);
     if(n){ af.className = "af"; af.textContent = " · 已应用 " + n + " 项筛选"; }
     else { af.className = ""; af.textContent = ""; }
@@ -525,7 +546,7 @@ function renderTable(){
 /* ---- 计费方式（视图切换） ---- */
 const BILL_VIEW_LABEL = { token:"按量计费", subs:"云平台套餐", agent:"Agent 桌面订阅" };
 const BILL_VIEW_SUB = {
-  token:`${MODELS.length} 款模型按量计费，含 5 维筛选与综合成本排序`,
+  token:`${MODELS.length} 款模型按量计费，含 6 维筛选与综合成本排序`,
   subs:"按积分 / 请求数 / Token 额度计费，展示官方换算口径的等效单价",
   agent:"按席位或额度计费，模型清单不同，无官方 Credit→token 换算口径"
 };
@@ -614,8 +635,8 @@ function setMode(mode){
   const hide = el => { if(el) el.style.display = "none"; };
   const show = el => { if(el) el.style.display = ""; };
   if(mode === "token"){
-    state.search = ""; state.vendors.clear(); state.types.clear();
-    state.tags.clear(); state.billings.clear(); state.platforms.clear();
+  state.search = ""; state.vendors.clear(); state.types.clear();
+  state.tags.clear(); state.caps.clear(); state.billings.clear(); state.platforms.clear();
     const si = document.getElementById("search"); if(si) si.value = "";
     document.querySelectorAll(".chip.on").forEach(c=>c.classList.remove("on"));
     show(document.getElementById("controls"));
@@ -651,25 +672,31 @@ function buildChips(){
   const vendors = [...new Set(MODELS.map(m=>m.vendorZh))].sort();
   const types = [...new Set(MODELS.map(m=>m.type))].sort();
   const tags = [...new Set(MODELS.flatMap(m=>m.tags))].filter(t=>TAG_CN[t]).sort();
+  /* 接口能力按 CAP_CN 的声明顺序排列（图像→文件→语音→视频→工具→结构化→推理），语义从感知到推理 */
+  const capOrder = Object.keys(CAP_CN);
+  const caps = [...new Set(MODELS.flatMap(m=>m.caps||[]))]
+    .filter(c=>CAP_CN[c]).sort((a,b)=>capOrder.indexOf(a)-capOrder.indexOf(b));
   const billings = ["per_token"];
   /* 价格来源按覆盖模型数从多到少排，便于快速定位主流渠道 */
   const platCount = {};
   MODELS.forEach(m=>{ platCount[m.vendorTag] = (platCount[m.vendorTag]||0) + 1; });
   const platforms = Object.keys(platCount).sort((a,b)=>platCount[b]-platCount[a]);
   const boxes = {
-    "chip-vendor":vendors, "chip-type":types, "chip-tag":tags,
+    "chip-vendor":vendors, "chip-type":types, "chip-tag":tags, "chip-cap":caps,
     "chip-billing":billings, "chip-platform":platforms,
   };
   const keyMap = {
     "chip-vendor":()=>state.vendors, "chip-type":()=>state.types, "chip-tag":()=>state.tags,
+    "chip-cap":()=>state.caps,
     "chip-billing":()=>state.billings, "chip-platform":()=>state.platforms,
   };
   const labelMap = {
     "chip-vendor":t=>t, "chip-type":t=>TYPE_CN[t]||t, "chip-tag":t=>TAG_CN[t]||t,
+    "chip-cap":t=>CAP_CN[t]||t,
     "chip-billing":()=>"按量Token", "chip-platform":t=>t,
   };
   const valMap = {
-    "chip-vendor":t=>t, "chip-type":t=>t, "chip-tag":t=>t,
+    "chip-vendor":t=>t, "chip-type":t=>t, "chip-tag":t=>t, "chip-cap":t=>t,
     "chip-billing":()=>"per_token", "chip-platform":t=>t,
   };
   for(const id in boxes){
@@ -733,7 +760,7 @@ function setActiveSort(dir){
 
 function resetAll(){
   state.search = "";
-  state.vendors.clear(); state.types.clear(); state.tags.clear(); state.billings.clear();
+  state.vendors.clear(); state.types.clear(); state.tags.clear(); state.caps.clear(); state.billings.clear();
   state.platforms.clear();
   document.getElementById("search").value = "";
   document.querySelectorAll(".chip").forEach(c=>c.classList.remove("on"));

@@ -37,6 +37,10 @@ const REQUIRED_MODEL_FIELDS = [
 ];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** 接口能力合法取值（与 index.html 的 CAP_CN 一一对应，改动时必须同步） */
+const CAP_KEYS = ['vision', 'file', 'audio', 'video', 'tools', 'json', 'reasoning'];
+let capsCount = 0;
+
 // 阈值统一取自 lib.js 的 SANITY，保证与 fetch-prices 的闸门完全一致
 // （曾出现两边阈值不一致：闸门放过 4~20 倍的变动，verify 却按 4 倍判失败）
 
@@ -121,6 +125,20 @@ MODELS.forEach((m, i) => {
   }
   if (typeof m.cnyOnly !== 'boolean') fail(`[${id}] cnyOnly 非布尔：${m.cnyOnly}`);
   if (!Array.isArray(m.tags) || !m.tags.length) fail(`[${id}] tags 为空`);
+  // 接口能力（可选，来自 OpenRouter 元数据，由 scripts/sync-caps.js 写入）
+  // 规则：给了就必须是非空数组、取值在合法集合内、无重复；缺失表示「未核实」，允许。
+  if (m.caps !== undefined) {
+    if (!Array.isArray(m.caps)) {
+      fail(`[${id}] caps 非数组：${typeof m.caps}`);
+    } else if (!m.caps.length) {
+      fail(`[${id}] caps 为空数组（应省略该字段以表示未核实）`);
+    } else {
+      const bad = m.caps.filter(c => !CAP_KEYS.includes(c));
+      if (bad.length) fail(`[${id}] caps 含未知取值：${bad.join(', ')}`);
+      if (new Set(m.caps).size !== m.caps.length) fail(`[${id}] caps 有重复项`);
+      capsCount++;
+    }
+  }
   if (!DATE_RE.test(m.updated)) fail(`[${id}] updated 格式错误：${m.updated}`);
   if (typeof m.type !== 'string' || !m.type.trim()) fail(`[${id}] type 非法：${m.type}`);
   typeDist[m.type] = (typeDist[m.type] || 0) + 1;
@@ -220,6 +238,8 @@ if (headSource) {
 }
 
 /* ---------- 汇总 ---------- */
+console.log('');
+console.log(`  ℹ 接口能力（caps）覆盖：${capsCount} / ${MODELS.length} 款（其余 ${MODELS.length - capsCount} 款为「未核实」，页面显示占位而非编造）`);
 console.log('');
 console.log('=== 体检结果 ===');
 console.log(`  错误 ${errors} 项，警告 ${warns} 项`);

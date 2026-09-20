@@ -109,6 +109,18 @@ jobs:
           { echo ""; echo "### 🔄 抓价输出"; echo '```'; tail -n 120 /tmp/fetch.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $CODE
 
+      # 4.5) 同步「接口能力」元数据（OpenRouter 的 input_modalities / supported_parameters）。
+      #      与价格无关、失败不致命：拿不到就保留原值，所以这里 continue-on-error。
+      - name: Sync capabilities
+        continue-on-error: true
+        run: |
+          set +e
+          node scripts/sync-caps.js --apply > /tmp/caps.log 2>&1
+          CODE=$?
+          cat /tmp/caps.log
+          { echo ""; echo "### 🧩 接口能力同步"; echo '```'; tail -n 40 /tmp/caps.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
+
       # 5) 数据体检：字段完整性 + 价格异常波动，不合格就中止，绝不推脏数据
       - name: Verify data.js
         run: |
