@@ -29,6 +29,8 @@ const { parseDataJs, matchModel, coreTokens } = require('./lib');
 const ROOT = path.resolve(__dirname, '..');
 const DATA_JS = path.join(ROOT, 'data.js');
 const DEPLOY_DATA_JS = path.join(ROOT, 'deploy', 'data.js');
+/** 人工核实名单：OpenRouter 未收录的模型，其 caps 由官方文档人工核对后维护在此 */
+const MANUAL_JSON = path.join(__dirname, 'caps-manual.json');
 
 const DRY = process.argv.includes('--dry-run');
 const APPLY = process.argv.includes('--apply');
@@ -104,6 +106,36 @@ function deriveCaps(entry) {
     });
   }
 
+  /* ---------- 人工核实名单覆盖（人工优先，来源是官方文档，比聚合元数据更可信） ---------- */
+  const MANUAL = JSON.parse(fs.readFileSync(MANUAL_JSON, 'utf8')).models || [];
+  const STALE_DAYS = 90;
+  const today = new Date();
+  const manualApplied = [];
+  const manualUnknownModel = [];
+  const manualNowCovered = [];   // OpenRouter 已能自动获取 → 可从名单移除
+  const manualStale = [];
+  const byShort = new Map(results.map((r) => [r.short, r]));
+  const modelShorts = new Set(MODELS.map((m) => m.short));
+
+  for (const entry of MANUAL) {
+    if (!modelShorts.has(entry.short)) { manualUnknownModel.push(entry.short); continue; }
+    const bad = (entry.caps || []).filter((c) => !CAP_KEYS.includes(c));
+    if (bad.length) throw new Error(`人工名单 [${entry.short}] 含非法能力值：${bad.join(', ')}`);
+
+    const r = byShort.get(entry.short);
+    if (r.caps) manualNowCovered.push(entry.short);
+    if (r) {
+      r.caps = entry.caps.slice();
+      r.manual = true;
+      r.source = entry.source;
+      r.checked = entry.checked;
+    }
+    manualApplied.push(entry.short);
+
+    const days = Math.floor((today - new Date(entry.checked + 'T00:00:00Z')) / 86400000);
+    if (days > STALE_DAYS) manualStale.push(`${entry.short}（已 ${days} 天未核验，上限 ${STALE_DAYS} 天）`);
+  }
+
   // ---------- 报告 ----------
   const covered = results.filter((r) => r.caps);
   const uncovered = results.filter((r) => !r.caps);
@@ -126,9 +158,25 @@ function deriveCaps(entry) {
   if (!uncovered.length) console.log('  （无）');
   for (const u of uncovered) console.log(`  ${u.short}  （${u.reason}）`);
 
+  console.log('\n=== 人工核实名单（caps-manual.json）===');
+  console.log(`  已应用 ${manualApplied.length} 款：${manualApplied.join('、') || '（无）'}`);
+  if (manualNowCovered.length) {
+    console.log(`  ℹ 以下模型 OpenRouter 已能自动获取，可考虑从人工名单移除（会自动改用聚合数据）：`);
+    for (const s of manualNowCovered) console.log(`     - ${s}`);
+  }
+  if (manualStale.length) {
+    console.log(`  ⚠ 以下条目超过 ${STALE_DAYS} 天未核验，请对照官方文档复查：`);
+    for (const s of manualStale) console.log(`     - ${s}`);
+  }
+  if (manualUnknownModel.length) {
+    console.log(`  ⚠ 以下 short 在 data.js 中不存在（拼写错误或模型已删除），请修正 caps-manual.json：`);
+    for (const s of manualUnknownModel) console.log(`     - ${s}`);
+  }
+
   console.log('\n=== 明细（前 20 款）===');
   for (const r of covered.slice(0, 20)) {
-    console.log(`  ${r.short.padEnd(22)} ${(r.caps.join(',') || '(无)').padEnd(42)} ctx=${r.contextLength}`);
+    const tag = r.manual ? '  ← 人工核实官方文档' : '';
+    console.log(`  ${r.short.padEnd(22)} ${(r.caps.join(',') || '(无)').padEnd(42)} ctx=${r.contextLength}${tag}`);
   }
 
   if (!APPLY) {
@@ -154,7 +202,8 @@ function deriveCaps(entry) {
   if (!/接口能力 caps 字段/.test(text)) {
     text = text.replace(
       /(\n)(\s*\*\s*更新时间：)/,
-      '$1 * 接口能力 caps 字段：来自 OpenRouter 元数据（input_modalities / supported_parameters），机器可验证，非人工推断$1$2',
+      '$1 * 接口能力 caps 字段：来自 OpenRouter 元数据（input_modalities / supported_parameters），机器可验证，非人工推断；'
+      + 'OpenRouter 未收录者由 scripts/caps-manual.json 按官方文档人工维护$1$2',
     );
   }
 
@@ -166,6 +215,12 @@ function deriveCaps(entry) {
     for (const m of missed) console.log('  - ' + m);
   }
   console.log('\n提示：请务必执行 node --check data.js 与 node scripts/verify-data.js 复核');
+
+  // 人工名单里出现 data.js 不存在的 short 属于配置错误，让 CI 能看见（workflow 该步骤为 continue-on-error）
+  if (manualUnknownModel.length) {
+    console.error(`\n⚠ caps-manual.json 中有 ${manualUnknownModel.length} 个 short 在 data.js 中不存在，请修正。`);
+    process.exitCode = 1;
+  }
 })().catch((e) => {
   console.error('失败：' + e.message);
   process.exit(1);
@@ -176,11 +231,16 @@ function insertOrReplaceCaps(text, short, capsLit) {
   const anchor = `short: "${short}"`;
   const at = text.indexOf(anchor);
   if (at < 0) return text;
-  // 模型块的范围：从 short 行往后 2000 字符（够覆盖 tags/上下文/来源等字段）
-  const end = Math.min(text.length, at + 2500);
+
+  // ⚠️ 窗口必须严格限制在「本模型对象」内。
+  // 曾经的 bug：窗口取固定 2500 字符，而单个模型块仅约 600 字符，于是窗口跨到了后面
+  // 几个模型，导致「已有 caps」命中的是邻居模型的 caps 行——既写不进目标模型，
+  // 又把邻居的 caps 覆盖成错误值。模型对象以 \n}, 收尾，据此定界。
+  const closeIdx = text.indexOf('\n},', at);
+  const end = closeIdx > 0 ? closeIdx : Math.min(text.length, at + 1200);
   const win = text.slice(at, end);
 
-  // 已有 caps: 则替换
+  // 已有 caps: 则替换（仅在窗口内查找）
   const existing = win.match(/\n(\s*)caps:\s*\[[^\]]*\]/);
   if (existing) {
     const start = at + existing.index;
