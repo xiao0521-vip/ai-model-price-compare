@@ -40,6 +40,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** 接口能力合法取值（与 index.html 的 CAP_CN 一一对应，改动时必须同步） */
 const CAP_KEYS = ['vision', 'file', 'audio', 'video', 'tools', 'json', 'reasoning'];
 let capsCount = 0;
+let retireCount = 0;
+const retiredList = [];
 
 // 阈值统一取自 lib.js 的 SANITY，保证与 fetch-prices 的闸门完全一致
 // （曾出现两边阈值不一致：闸门放过 4~20 倍的变动，verify 却按 4 倍判失败）
@@ -90,7 +92,20 @@ let okModels = 0;
 MODELS.forEach((m, i) => {
   const id = m && m.short ? m.short : `#${i}`;
 
-  // 必需字段
+  // 生命周期（可选，由 scripts/sync-lifecycle.js 维护）
+  // 规则：retireDate 与 retireSrc 必须成对出现、日期格式合法；已过期的要警告（应评估移除）
+  if (m.retireDate !== undefined || m.retireSrc !== undefined) {
+    if (!DATE_RE.test(String(m.retireDate || ''))) {
+      fail(`[${id}] retireDate 缺失或格式错误：${m.retireDate}`);
+    } else if (!m.retireSrc) {
+      fail(`[${id}] 有 retireDate 但缺 retireSrc（该日期的来源）`);
+    } else {
+      retireCount++;
+      if (String(m.retireDate) < new Date().toISOString().slice(0, 10)) {
+        retiredList.push(`${id}（${m.retireDate}）`);
+      }
+    }
+  }
   const missing = REQUIRED_MODEL_FIELDS.filter(f => m[f] === undefined || m[f] === null || m[f] === '');
   if (missing.length) {
     fail(`[${id}] 缺字段：${missing.join(', ')}`);
@@ -240,6 +255,10 @@ if (headSource) {
 /* ---------- 汇总 ---------- */
 console.log('');
 console.log(`  ℹ 接口能力（caps）覆盖：${capsCount} / ${MODELS.length} 款（其余 ${MODELS.length - capsCount} 款为「未核实」，页面显示占位而非编造）`);
+console.log(`  ℹ 已登记下架日期：${retireCount} 款${retiredList.length ? `，其中已停服 ${retiredList.length} 款` : ''}`);
+if (retiredList.length) {
+  warn(`以下模型已过下架日期，建议评估从总表移除（或确认官方仍在售并更新日期）：${retiredList.join('、')}`);
+}
 console.log('');
 console.log('=== 体检结果 ===');
 console.log(`  错误 ${errors} 项，警告 ${warns} 项`);

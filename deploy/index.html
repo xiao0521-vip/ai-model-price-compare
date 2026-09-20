@@ -138,6 +138,11 @@
   .cap-badge:hover{background:#e2e8f0;color:#1f2937}
   .cap-none{display:inline-block;color:var(--muted);font-size:10.5px;border:1px dashed var(--line);
     border-radius:4px;padding:1px 5px}
+  /* 生命周期角标：已停服 / 即将下架（60 天内）。更远期的下架日期只在数据里登记，不打扰浏览 */
+  .lc{display:inline-block;border-radius:4px;padding:1px 6px;font-size:10.5px;font-weight:600;
+    margin-top:3px;white-space:nowrap}
+  .lc-retired{background:#fee2e2;border:1px solid #fca5a5;color:#b91c1c}
+  .lc-soon{background:#fef3c7;border:1px solid #fcd34d;color:#92400e}
   td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
   .price-input{color:var(--ink)}
   .price-input .p{font-weight:700}
@@ -497,7 +502,7 @@ function modelRow(m){
     <td class="num price-input"><span class="p">¥${m.inputPm}</span><span class="u">/百万</span></td>
     <td class="num price-input"><span class="p">¥${m.outputPm}</span><span class="u">/百万</span></td>
     <td><div class="model-name">${esc(m.short)}</div>
-        <div class="model-sub">${esc(m.vendorZh)} · ${esc(m.family)}</div></td>
+        <div class="model-sub">${esc(m.vendorZh)} · ${esc(m.family)}</div>${lifecycleBadge(m)}</td>
     <td><span class="type-tag">${esc(TYPE_CN[m.type]||m.type)}</span></td>
     <td class="ctx">${esc(m.context)}</td>
     <td>${tags}</td>
@@ -506,6 +511,22 @@ function modelRow(m){
     <td><div class="src">${src}${srcLine}</div></td>
     <td><div class="desc">${esc(m.desc)}</div></td>
   </tr>`;
+}
+
+/* ---- 生命周期角标：已停服 / 60 天内即将下架（数据来自 retireDate，由 scripts/sync-lifecycle.js 维护） ---- */
+const LIFECYCLE_SOON_DAYS = 60;
+function lifecycleBadge(m){
+  if(!m.retireDate) return "";
+  const today = new Date().toISOString().slice(0,10);
+  const src = m.retireSrc ? ` title="来源：${esc(m.retireSrc)}"` : "";
+  if(m.retireDate < today){
+    return `<span class="lc lc-retired"${src}>⛔ ${esc(m.retireDate)} 已停服</span>`;
+  }
+  const days = Math.round((new Date(m.retireDate+"T00:00:00Z") - new Date(today+"T00:00:00Z"))/86400000);
+  if(days <= LIFECYCLE_SOON_DAYS){
+    return `<span class="lc lc-soon"${src}>⏳ ${days} 天后下架（${esc(m.retireDate)}）</span>`;
+  }
+  return "";   // 更远期的下架日期不在页面打扰浏览
 }
 
 /* ---- 过滤 ---- */

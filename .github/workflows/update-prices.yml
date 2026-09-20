@@ -121,6 +121,28 @@ jobs:
           { echo ""; echo "### 🧩 接口能力同步"; echo '```'; tail -n 40 /tmp/caps.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $CODE
 
+      # 4.6) 同步「生命周期」：下架/停服日期（OpenRouter expiration_date + 官方公告人工名单）
+      - name: Sync lifecycle
+        continue-on-error: true
+        run: |
+          set +e
+          node scripts/sync-lifecycle.js --apply > /tmp/life.log 2>&1
+          CODE=$?
+          cat /tmp/life.log
+          { echo ""; echo "### 📅 生命周期（下架/停服）"; echo '```'; cat /tmp/life.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
+
+      # 4.7) 新模型巡检：只报告候选，不自动写入（避免把变体/别名误收录）
+      - name: Discover new models
+        continue-on-error: true
+        run: |
+          set +e
+          node scripts/discover-models.js --dry-run > /tmp/discover.log 2>&1
+          CODE=$?
+          cat /tmp/discover.log
+          { echo ""; echo "### 🔎 新模型巡检"; echo '```'; cat /tmp/discover.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
+
       # 5) 数据体检：字段完整性 + 价格异常波动，不合格就中止，绝不推脏数据
       - name: Verify data.js
         run: |

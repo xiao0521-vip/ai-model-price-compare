@@ -1,6 +1,7 @@
 /* =====================================================================
  * 主流 AI 大模型性价比对比总表 · 数据层
  * 接口能力 caps 字段：来自 OpenRouter 元数据（input_modalities / supported_parameters），机器可验证，非人工推断
+ * 生命周期：retireDate = 下架/停服日期，retireSrc = 该日期来源（官方公告链接 或 "OpenRouter" 聚合平台口径）
  * 更新时间：2026-09-20  |  收录 76 款模型 + 24 组订阅/套餐
  * ---------------------------------------------------------------------
  * 换算口径：
@@ -206,6 +207,8 @@ var MODELS = [
   vendorTag: "Anthropic官方",
   priceSrc: "Anthropic官方直连（$0.80/$4.00），batch/flex 5折",
   updated: "2026-09-11",
+  retireSrc: "https://cloud.google.com/vertex-ai/generative-ai/docs/models/deprecations",
+  retireDate: "2026-07-05",
   desc: "Anthropic Haiku 系列上一代主力，低延迟低单价，仍常用于大规模生产调用与智能体高频 Step。",
 },
 {
@@ -307,6 +310,8 @@ var MODELS = [
   vendorTag: "Google官方",
   priceSrc: "Google AI Studio/Vertex 直连（$0.10/$0.40）",
   updated: "2026-09-11",
+  retireSrc: "https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+  retireDate: "2026-06-01",
   desc: "Google Gemini 2.0 系列轻量款，1M 超长上下文，常用于大规模低成本文档处理与多模态初筛。",
 },
 {
@@ -318,6 +323,8 @@ var MODELS = [
   vendorTag: "Google官方",
   priceSrc: "Google官方直连（$0.10/$0.40），超200K上下文加价",
   updated: "2026-09-11",
+  retireSrc: "OpenRouter",
+  retireDate: "2026-10-20",
   desc: "Gemini 2.5 系列超轻量款，输入仅 $0.10/百万 token，1M 上下文，适合海量文档处理与低成本大规模调用。",
 },
 {
@@ -340,6 +347,8 @@ var MODELS = [
   vendorTag: "Google官方",
   priceSrc: "Google官方直连（$0.30/$2.50），超200K上下文加价",
   updated: "2026-09-11",
+  retireSrc: "OpenRouter",
+  retireDate: "2026-10-20",
   desc: "Gemini 2.5 系列均衡款，1M 上下文、原生多模态，兼顾吞吐与质量，是 Google 阵营主力生产模型。",
 },
 {
@@ -384,6 +393,8 @@ var MODELS = [
   vendorTag: "Google官方",
   priceSrc: "Google官方直连（$1.25/$10.00），超200K上下文加价",
   updated: "2026-09-11",
+  retireSrc: "OpenRouter",
+  retireDate: "2026-10-20",
   desc: "Gemini 上一代旗舰，1M 超长上下文与深度研究能力，长文档与代码库处理表现出色，价格远低于当代旗舰。",
 },
 {
@@ -589,6 +600,8 @@ var MODELS = [
   vendorTag: "硅基流动",
   priceSrc: "硅基流动在售价（¥4/¥6），缓存命中 ¥0.4/百万token；2026-06-30 起调整至该价",
   updated: "2026-09-18",
+  retireSrc: "OpenRouter",
+  retireDate: "2026-09-28",
   desc: "DeepSeek V3 系列迭代版，位于 V4 之下提供更经济的通用推理档；缓存命中价仅为输入的一成，适合高重复前缀的批量任务与 RAG。",
 },
 {
