@@ -1,6 +1,6 @@
 /* =====================================================================
  * 主流 AI 大模型性价比对比总表 · 数据层
- * 更新时间：2026-09-19  |  收录 76 款模型 + 24 组订阅/套餐
+ * 更新时间：2026-09-20  |  收录 76 款模型 + 24 组订阅/套餐
  * ---------------------------------------------------------------------
  * 换算口径：
  *  - 所有价格已统一折算为「人民币 / 每百万 token」
@@ -16,7 +16,7 @@
 
 var META = {
   fx: 7.10,
-  updated: "2026-09-19",
+  updated: "2026-09-20",
   note: "价格为采集快照（官方API直连价 + 国内聚合平台在售价）。订阅/套餐按行业平均用量（约50M输入+10M输出token/月，3:1比例）摊薄折算等效每百万token成本。所有价格统一人民币。标价实时变动，请以各平台官方定价页为准。",
 };
 
@@ -639,21 +639,21 @@ var MODELS = [
 {
   name: "GLM-5.2", short: "智谱 GLM-5.2", family: "GLM-5",
   vendor: "Zhipu", vendorZh: "智谱", type: "通用均衡", billing: "per_token",
-  inputPm: 3.9362, outputPm: 12.371, cnyOnly: true, context: "200K",
+  inputPm: 4.6122, outputPm: 14.4954, cnyOnly: true, context: "200K",
   tags: ["text","code","reasoning","agent"],
   vendorTag: "七牛云AI",
   priceSrc: "七牛云在售价（¥4/¥18）；硅基流动在售价 ¥9.25/¥28.85（$1.302/$4.092）",
-  updated: "2026-09-18",
+  updated: "2026-09-20",
   desc: "智谱 GLM-5 系列前代版本，200K 上下文，Agent 任务与工具调用见长，价格低于 GLM-5.3，适合成本敏感的生产场景。",
 },
 {
   name: "GLM-5.3", short: "智谱 GLM-5.3", family: "GLM-5",
   vendor: "Zhipu", vendorZh: "智谱", type: "通用均衡", billing: "per_token",
-  inputPm: 6.461, outputPm: 20.306, cnyOnly: true, context: "200K",
+  inputPm: 6.3616, outputPm: 19.9936, cnyOnly: true, context: "200K",
   tags: ["text","code","reasoning","agent","longctx"],
   vendorTag: "阿里云百炼",
   priceSrc: "阿里百炼在售价（¥8/¥28）；OpenRouter 约 $1.12 起",
-  updated: "2026-09-18",
+  updated: "2026-09-20",
   desc: "智谱新一代基座（50亿美元再融资支持研发），Agent 任务与复杂推理见长，深度接入 CodeBits/企业 RAG，主打可落地的智能体编程与工具调用。",
 },
 
