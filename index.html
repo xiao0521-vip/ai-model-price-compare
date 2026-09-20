@@ -424,6 +424,8 @@ const state = {
   search: "",
   vendors: new Set(), types: new Set(), tags: new Set(), billings: new Set(),
   platforms: new Set(), caps: new Set(),
+  /* 默认视图：按量计费。⚠️ 这个字段必须存在，否则 setMode(undefined) 会掉进 else 分支显示 Agent 订阅视图 */
+  mode: "token",
   dir: "asc",
 };
 
@@ -631,6 +633,10 @@ function initSeg(){
 }
 
 function setMode(mode){
+  /* 防御：任何非法/缺失的模式值都回落到按量计费。
+     曾经因为 state 缺 mode 字段，setMode(undefined) 静默进了 else 分支，
+     导致网站默认显示「Agent 桌面订阅」视图。分支判定绝不能依赖「兜底即最后一个分支」。 */
+  if(mode !== "token" && mode !== "subs" && mode !== "agent") mode = "token";
   state.mode = mode;
   const hide = el => { if(el) el.style.display = "none"; };
   const show = el => { if(el) el.style.display = ""; };
@@ -652,7 +658,7 @@ function setMode(mode){
     hide(document.getElementById("view-agent"));
     show(document.getElementById("view-subs"));
     renderSubsView();
-  } else {
+  } else {   /* 经上面的守卫收敛后，此处必然是 "agent" */
     hide(document.getElementById("controls"));
     hide(document.getElementById("stat"));
     hide(document.getElementById("tbl-wrap"));
