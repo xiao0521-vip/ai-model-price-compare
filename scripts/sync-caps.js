@@ -188,14 +188,18 @@ function deriveCaps(entry) {
   let text = fs.readFileSync(DATA_JS, 'utf8');
   const missed = [];
   let patched = 0;
+  let unchanged = 0;
 
   for (const r of results) {
     if (!r.caps) { missed.push(`${r.short}（无数据）`); continue; }
     const capsLit = `["${r.caps.join('","')}"]`;
     const before = text;
     text = insertOrReplaceCaps(text, r.short, capsLit);
-    if (text === before) missed.push(`${r.short}（未定位到 tags 行）`);
-    else patched++;
+    if (text === before) {
+      // 值本来就一致（幂等），不算失败；只有字段确实缺失才算「未定位」
+      const hasField = new RegExp(`caps:\\s*\\[\\s*"${r.caps[0] || ''}"`).test(text);
+      if (hasField) unchanged++; else missed.push(`${r.short}（未定位到 tags 行）`);
+    } else patched++;
   }
 
   // 头部说明补一行
@@ -209,7 +213,7 @@ function deriveCaps(entry) {
 
   fs.writeFileSync(DATA_JS, text, 'utf8');
   fs.writeFileSync(DEPLOY_DATA_JS, text, 'utf8');
-  console.log(`\n已写入 ${patched} 款模型的 caps 字段（data.js + deploy/data.js 同步）`);
+  console.log(`\n已写入 ${patched} 款模型的 caps 字段（${unchanged} 款值已一致，幂等跳过；data.js + deploy/data.js 已同步）`);
   if (missed.length) {
     console.log(`未处理 ${missed.length} 项：`);
     for (const m of missed) console.log('  - ' + m);

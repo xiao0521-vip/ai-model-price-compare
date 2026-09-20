@@ -1,6 +1,6 @@
 {
   "_readme": [
-    "人工维护的「生命周期」名单：记录模型的官方停服/弃用日期，用于站内提示与自动预警。",
+    "人工维护的「生命周期」名单：记录模型的官方停服/弃用日期，用于站内提示与自动移除。",
     "与 OpenRouter 的 expiration_date 的关系：",
     "  - OpenRouter 的 expiration_date 表示「在聚合平台下架」，由 sync-lifecycle.js 自动同步；",
     "  - 本文件的 retireDate 表示「厂商官方停服/弃用」，来源必须是官方公告或官方文档，优先级更高。",
@@ -12,23 +12,24 @@
     "  note        —— 官方原文要点（例如「已于 X 日弃用，Y 日关停」）",
     "维护规则：",
     "  1. 每日 CI 会调用 sync-lifecycle.js 重新应用本文件，并把官方日期写进 data.js 的 retireDate 字段",
-    "  2. 日期一旦过去，站点会显示「已停服」，CI 日志也会提示评估移除",
+    "  2. retireDate 已过且带依据的模型，会被 sync-lifecycle.js **自动从总表移除**，并移入本文件的 archived 数组留档",
     "  3. 新发现的官方公告（如下线通知）请及时补录，不要等模型失效才补"
   ],
-  "models": [
+  "models": [],
+  "archived": [
     {
       "short": "Claude Haiku 3.5",
       "retireDate": "2026-07-05",
       "retireSrc": "https://cloud.google.com/vertex-ai/generative-ai/docs/models/deprecations",
-      "checked": "2026-09-21",
-      "note": "Google Vertex 公告：Claude 3.5 Haiku 于 2026-01-05 弃用，2026-07-05 关停。"
+      "removedOn": "2026-09-20",
+      "note": "Google Vertex 公告：Claude 3.5 Haiku 于 2026-01-05 弃用，2026-07-05 关停。已按用户要求从总表移除。"
     },
     {
       "short": "Gemini 2.0 Flash",
       "retireDate": "2026-06-01",
       "retireSrc": "https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
-      "checked": "2026-09-21",
-      "note": "Google Cloud 公告：自 2026-06-01 起 gemini-2.0-flash-001 与 2.0-flash-lite-001 停止服务。"
+      "removedOn": "2026-09-20",
+      "note": "Google Cloud 公告：自 2026-06-01 起 gemini-2.0-flash-001 与 2.0-flash-lite-001 停止服务。已按用户要求从总表移除。"
     }
   ]
 }

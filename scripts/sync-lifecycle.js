@@ -79,6 +79,7 @@ const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(
   const byShort = new Map(results.map((r) => [r.short, r]));
   const unknownManual = [];
   const overridden = [];
+  const removedManual = [];   // 本次被移除、且来自人工名单的条目 → 自动归档
 
   for (const e of manual) {
     if (!modelShorts.has(e.short)) { unknownManual.push(e.short); continue; }
@@ -103,7 +104,7 @@ const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(
   console.log(`  🪦 已停服：${retired.length} 款　⏳ ${SOON_DAYS} 天内即将下架：${soon.length} 款\n`);
 
   if (retired.length) {
-    console.log(`=== 🪦 已停服（应评估从总表移除）===`);
+    console.log(`=== 🪦 已停服（--apply 时会自动从总表移除）===`);
     for (const r of retired) console.log(`  ${r.date}  ${r.short}　来源：${r.manual ? '官方' : 'OpenRouter'}${r.note ? '　' + r.note : ''}`);
     console.log('');
   }
@@ -139,28 +140,116 @@ const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(
   let text = fs.readFileSync(DATA_JS, 'utf8');
   let patched = 0;
   const missed = [];
+
+  // 1) 先移除「已明确下架」的模型（retireDate 已过 且 有明确依据 retireSrc）
+  //    安全设计：必须同时满足两个条件才移除——日期已过 + 有来源，避免误删；
+  //    历史记录在 git 里可随时找回，站点侧另有「已停服」角标兜底。
+  const removed = [];
+  for (const r of results) {
+    if (!r.date || !r.src) continue;
+    if (r.date >= TODAY) continue;
+    const before = text;
+    text = removeModel(text, r.short);
+    if (text !== before) {
+      removed.push(`${r.short}（下架日 ${r.date}，依据 ${r.manual ? '官方公告' : 'OpenRouter'}）`);
+      if (r.manual) removedManual.push({ short: r.short, date: r.date, src: r.src, note: r.note });
+    }
+  }
+  if (removed.length) {
+    console.log(`\n=== 🗑 已移除下架模型 ${removed.length} 款 ===`);
+    for (const x of removed) console.log('  - ' + x);
+  }
+
+  // 2) 其余模型写入/更新生命周期字段
+  let unchanged = 0;
   for (const r of results) {
     if (!r.date) continue;
+    if (r.date < TODAY && r.src) continue;   // 已被移除，不再写字段
     const before = text;
     text = upsertField(text, r.short, 'retireDate', `"${r.date}"`);
     text = upsertField(text, r.short, 'retireSrc', `"${r.src}"`);
-    if (text === before) missed.push(r.short); else patched++;
+    if (text === before) {
+      // 值本来就一致（幂等），不算失败；只有字段确实缺失才算「未定位」
+      const hasField = new RegExp(`retireDate:\\s*"${r.date}"`).test(text);
+      if (hasField) unchanged++; else missed.push(r.short);
+    } else patched++;
   }
 
-  // 头部说明补一行
+  // 3) 头部计数、头部日期与 META.updated 同步
+  //    ⚠️ 计数不能用 /^\s*short:/ —— data.js 里 name 与 short 写在同一行
+  const remainCount = (text.match(/short:\s*"/g) || []).length;
+  text = text.replace(/(收录 )(\d+)( 款模型)/, `$1${remainCount}$3`);
+  text = text.replace(/\n( \* 更新时间：)\d{4}-\d{2}-\d{2}/, `\n$1${TODAY}`);
   if (!/retireDate/.test(text.split('\n').slice(0, 30).join('\n'))) {
     text = text.replace(
       /(\n)(\s*\*\s*更新时间：)/,
-      '$1 * 生命周期：retireDate = 下架/停服日期，retireSrc = 该日期来源（官方公告链接 或 "OpenRouter" 聚合平台口径）$1$2',
+      '$1 * 生命周期：retireDate = 下架/停服日期，retireSrc = 该日期来源；日期已过且有依据的模型由 sync-lifecycle.js 自动移除$1$2',
     );
+  }
+  // META.updated 只在 META 对象内部替换，避免误改模型条目的 updated 字段
+  const metaIdx = text.indexOf('var META');
+  if (metaIdx >= 0) {
+    const segEnd = metaIdx + 600;
+    const seg = text.slice(metaIdx, segEnd)
+      .replace(/(\n\s*updated: ")\d{4}-\d{2}-\d{2}(",)/, `$1${TODAY}$2`);
+    text = text.slice(0, metaIdx) + seg + text.slice(segEnd);
   }
 
   fs.writeFileSync(DATA_JS, text, 'utf8');
   fs.writeFileSync(DEPLOY_DATA_JS, text, 'utf8');
-  console.log(`已写入 ${patched} 款模型的生命周期字段（data.js + deploy/data.js 同步）`);
+
+  // 4) 自动归档：把已移除模型的人工记录从 models 挪到 archived（保留官方依据，便于追溯）
+  if (removedManual.length) {
+    const doc = JSON.parse(fs.readFileSync(MANUAL_JSON, 'utf8'));
+    doc.models = (doc.models || []).filter((e) => !removedManual.some((x) => x.short === e.short));
+    doc.archived = doc.archived || [];
+    for (const x of removedManual) {
+      if (doc.archived.some((a) => a.short === x.short)) continue;
+      doc.archived.push({
+        short: x.short, retireDate: x.date, retireSrc: x.src,
+        removedOn: TODAY, note: (x.note || '') + `（${TODAY} 自动移除，记录留档）`,
+      });
+    }
+    fs.writeFileSync(MANUAL_JSON, JSON.stringify(doc, null, 2) + '\n', 'utf8');
+    console.log(`已归档 ${removedManual.length} 条人工记录到 lifecycle-manual.json 的 archived`);
+  }
+
+  console.log(`\n已写入 ${patched} 款模型的生命周期字段（${unchanged} 款值已一致，幂等跳过；data.js + deploy/data.js 已同步）`);
+  console.log(`当前收录 ${remainCount} 款模型`);
   if (missed.length) console.log(`未定位到：${missed.join('、')}`);
   console.log('提示：请执行 node --check data.js 与 node scripts/verify-data.js 复核');
 })().catch((e) => { console.error('失败：' + e.message); process.exit(1); });
+
+/* ============================================================
+ * 移除指定模型的整个对象
+ * ⚠️ 必须按对象边界定界（固定字符窗口曾命中邻居模型导致静默写错）；
+ *    且必须兼容 CRLF —— 文件是 CRLF 时 "\n{" 之后的字符是 "\r"，直接搜 "\n{\n" 会找不到
+ * ============================================================ */
+function removeModel(text, short) {
+  const anchor = `short: "${short}"`;
+  const at = text.indexOf(anchor);
+  if (at < 0) return text;
+
+  const openIdx = text.lastIndexOf('\n{', at);      // 本模型对象的起始大括号（行首）
+  const endLine = objectEndIndex(text, at);          // 本模型对象的结束 "}" （行首）
+  if (openIdx < 0 || endLine < 0) return text;
+
+  let start = openIdx;
+  if (text[start - 1] === '\r') start--;             // 连 CRLF 的 \r 一起删
+  let end = text.indexOf('}', endLine) + 1;          // 跳过结束大括号
+  if (text[end] === ',') end++;                      // 跳过逗号
+  if (text[end] === '\r') end++;
+  if (text[end] === '\n') end++;
+  return text.slice(0, start) + text.slice(end);
+}
+
+/** 找到 at 之后第一个「行首的 }」（即对象结束位置），兼容 LF 与 CRLF */
+function objectEndIndex(text, at) {
+  const re = /\r?\n\}/g;
+  re.lastIndex = at;
+  const m = re.exec(text);
+  return m ? m.index + m[0].length - 1 : -1;         // 返回 '}' 本身的下标
+}
 
 /* ============================================================
  * 在指定模型对象内插入或替换字段
@@ -170,9 +259,8 @@ function upsertField(text, short, field, literal) {
   const anchor = `short: "${short}"`;
   const at = text.indexOf(anchor);
   if (at < 0) return text;
-  const closeIdx = text.indexOf('\n},', at);
-  const end = closeIdx > 0 ? closeIdx : Math.min(text.length, at + 1200);
-  const win = text.slice(at, end);
+  const end = objectEndIndex(text, at);                 // 本模型对象的结束位置（CRLF 安全）
+  const win = text.slice(at, end > 0 ? end : Math.min(text.length, at + 1200));
 
   const existing = win.match(new RegExp('\\n(\\s*)' + field + ':\\s*("[^"]*"|[^,\\n]+),?'));
   if (existing) {

@@ -2,7 +2,7 @@
  * 主流 AI 大模型性价比对比总表 · 数据层
  * 接口能力 caps 字段：来自 OpenRouter 元数据（input_modalities / supported_parameters），机器可验证，非人工推断
  * 生命周期：retireDate = 下架/停服日期，retireSrc = 该日期来源（官方公告链接 或 "OpenRouter" 聚合平台口径）
- * 更新时间：2026-09-20  |  收录 76 款模型 + 24 组订阅/套餐
+ * 更新时间：2026-09-20  |  收录 74 款模型 + 24 组订阅/套餐
  * ---------------------------------------------------------------------
  * 换算口径：
  *  - 所有价格已统一折算为「人民币 / 每百万 token」
@@ -197,21 +197,7 @@ var MODELS = [
   desc: "OpenAI 顶级推理档，输出价 $180/百万 token，主打竞赛级数学、科研推导与超长链思考，用量少但单价极高。",
 },
 
-/* =========================== Anthropic ========================== */
-{
-  name: "Claude-Haiku-3.5", short: "Claude Haiku 3.5", family: "Claude 3.5",
-  vendor: "Anthropic", vendorZh: "Anthropic", type: "轻量", billing: "per_token",
-  inputPm: 5.68, outputPm: 28.40, cnyOnly: false, context: "200K",
-  tags: ["text","multimodal","code","reasoning"],
-  caps: ["vision","file","tools"],
-  vendorTag: "Anthropic官方",
-  priceSrc: "Anthropic官方直连（$0.80/$4.00），batch/flex 5折",
-  updated: "2026-09-11",
-  retireSrc: "https://cloud.google.com/vertex-ai/generative-ai/docs/models/deprecations",
-  retireDate: "2026-07-05",
-  desc: "Anthropic Haiku 系列上一代主力，低延迟低单价，仍常用于大规模生产调用与智能体高频 Step。",
-},
-{
+/* =========================== Anthropic ========================== */{
   name: "Claude-Haiku-4.5", short: "Claude Haiku 4.5", family: "Claude 5",
   vendor: "Anthropic", vendorZh: "Anthropic", type: "轻量", billing: "per_token",
   inputPm: 7.10, outputPm: 35.50, cnyOnly: false, context: "200K",
@@ -300,21 +286,7 @@ var MODELS = [
   desc: "Claude 家族当前最强档，1M 上下文、缓存命中价 $1.00/百万 token，主打长文创作、深度研究与复杂多步智能体任务。",
 },
 
-/* ============================ Google ============================ */
-{
-  name: "Gemini-2.0-Flash", short: "Gemini 2.0 Flash", family: "Gemini 2.0",
-  vendor: "Google", vendorZh: "谷歌", type: "轻量", billing: "per_token",
-  inputPm: 0.71, outputPm: 2.84, cnyOnly: false, context: "1.0M",
-  tags: ["text","multimodal","longctx"],
-  caps: ["vision","audio","video","tools","json"],
-  vendorTag: "Google官方",
-  priceSrc: "Google AI Studio/Vertex 直连（$0.10/$0.40）",
-  updated: "2026-09-11",
-  retireSrc: "https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
-  retireDate: "2026-06-01",
-  desc: "Google Gemini 2.0 系列轻量款，1M 超长上下文，常用于大规模低成本文档处理与多模态初筛。",
-},
-{
+/* ============================ Google ============================ */{
   name: "Gemini-2.5-Flash-Lite", short: "Gemini 2.5 Flash-Lite", family: "Gemini 2.5",
   vendor: "Google", vendorZh: "谷歌", type: "轻量", billing: "per_token",
   inputPm: 0.71, outputPm: 2.84, cnyOnly: false, context: "1.0M",

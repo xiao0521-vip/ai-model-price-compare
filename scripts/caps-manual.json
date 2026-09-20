@@ -10,78 +10,138 @@
     "维护规则：",
     "  1. 每日 CI 会先跑 OpenRouter 自动同步，再用本文件覆盖覆盖对应模型（人工优先）",
     "  2. 若某模型在 OpenRouter 已可自动获取，脚本会提示可从本文件移除",
-    "  3. 若官方已停服/下线，脚本会在日志中提示，应先从 data.js 评估移除"
+    "  3. 若官方已停服/下线，脚本会在日志中提示，应先从 data.js 评估移除",
+    "  4. 模型从总表移除（下架）后，其条目会自动挪到 archived 数组留档，不再参与每日同步"
   ],
   "models": [
     {
       "short": "Gemini 3 Pro",
-      "caps": ["vision", "file", "audio", "video", "tools", "json", "reasoning"],
+      "caps": [
+        "vision",
+        "file",
+        "audio",
+        "video",
+        "tools",
+        "json",
+        "reasoning"
+      ],
       "source": "https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-pro",
       "checked": "2026-09-21",
       "note": "官方模型页：输入 文本/代码/图片/音频/视频/PDF；支持函数调用、结构化输出、思考型。"
     },
     {
-      "short": "Gemini 2.0 Flash",
-      "caps": ["vision", "audio", "video", "tools", "json"],
-      "source": "https://ai.google.dev/gemini-api/docs/models/gemini-2.0-flash",
-      "checked": "2026-09-21",
-      "note": "官方页：输入 音频/图片/视频/文本；函数调用与结构化输出支持，「思考」标注为不支援/实验性，故不计 reasoning。⚠️ 该型号已宣布停服（2026-06-01）。"
-    },
-    {
-      "short": "Claude Haiku 3.5",
-      "caps": ["vision", "file", "tools"],
-      "source": "https://docs.anthropic.com/en/docs/about-claude/models",
-      "checked": "2026-09-21",
-      "note": "图文与 PDF 输入 + 工具调；「扩展思考」不支持，结构化输出各方来源口径不一（官方无独立参数），故均不入选。⚠️ 该型号已弃用（Vertex 2026-07-05 关停）。"
-    },
-    {
       "short": "Mistral Small 4",
-      "caps": ["vision", "tools", "json", "reasoning"],
+      "caps": [
+        "vision",
+        "tools",
+        "json",
+        "reasoning"
+      ],
       "source": "https://huggingface.co/docs/transformers/model_doc/mistral4",
       "checked": "2026-09-21",
       "note": "官方模型文档（Mistral-Small-4-119B）：原生图文输入、原生函数调用、JSON 输出、reasoning_effort 可调。"
     },
     {
       "short": "Mistral Large 3",
-      "caps": ["vision", "tools", "json"],
+      "caps": [
+        "vision",
+        "tools",
+        "json"
+      ],
       "source": "https://docs.mistral.ai/capabilities/vision/",
       "checked": "2026-09-21",
       "note": "官方 vision 文档将 mistral-large-2512 列为推荐视觉模型；函数调用与结构化输出支持；无推理强度参数，故不计 reasoning。"
     },
     {
       "short": "千问 Qwen3.8 Omni-Flash",
-      "caps": ["vision", "audio", "video", "tools", "reasoning"],
+      "caps": [
+        "vision",
+        "audio",
+        "video",
+        "tools",
+        "reasoning"
+      ],
       "source": "https://help.aliyun.com/zh/model-studio/qwen3-8-omni-flash",
       "checked": "2026-09-21",
       "note": "百炼官方能力表：输入 文本/图片/音频/视频；Function Calling 支持；深度思考默认开启。官方能力表未列结构化输出，故不计 json。"
     },
     {
       "short": "Kimi K2.8 Preview",
-      "caps": ["vision", "video", "tools", "json", "reasoning"],
+      "caps": [
+        "vision",
+        "video",
+        "tools",
+        "json",
+        "reasoning"
+      ],
       "source": "https://kimi.com/code/docs",
       "checked": "2026-09-21",
       "note": "月之暗面官方更新说明：多模态输入（文本/图片/视频）、low/high/max 三档推理强度。工具调用与结构化输出依据第三方评测，官方尚未发布独立模型卡。"
     },
     {
       "short": "豆包 Seed 2.0 Pro",
-      "caps": ["vision", "video", "tools", "json", "reasoning"],
+      "caps": [
+        "vision",
+        "video",
+        "tools",
+        "json",
+        "reasoning"
+      ],
       "source": "https://www.volcengine.com/docs/82379/1330310",
       "checked": "2026-09-21",
       "note": "火山方舟模型页（doubao-seed-2-0-pro）：输入 文本/图片/视频；结构化输出、深度思考（thinking.type / reasoning_effort）、Function Call 均支持。"
     },
     {
       "short": "豆包 Doubao Seed2.1 Pro",
-      "caps": ["vision", "video", "tools", "json", "reasoning"],
+      "caps": [
+        "vision",
+        "video",
+        "tools",
+        "json",
+        "reasoning"
+      ],
       "source": "https://www.volcengine.com/docs/6461/1556464",
       "checked": "2026-09-21",
       "note": "火山方舟模型列表（doubao-seed-2-1-pro-260915）：深度思考、多模态理解、工具调用、结构化输出（建议 json_schema 模式）；输入 文本/图片/视频。"
     },
     {
       "short": "文心 ERNIE 4.5 Turbo",
-      "caps": ["vision", "audio", "video", "tools", "json"],
+      "caps": [
+        "vision",
+        "audio",
+        "video",
+        "tools",
+        "json"
+      ],
       "source": "https://console.bce.baidu.com/qianfan/modelcenter/model/buildIn/detail/am-xpgukxjf6s0r",
       "checked": "2026-09-21",
       "note": "千帆模型页（ernie-4.5-turbo-20260402）：输入类型 文字/图像/视频/语音；Function Call 与结构化输出支持。未标注独立推理/思考参数，故不计 reasoning。"
+    }
+  ],
+  "archived": [
+    {
+      "short": "Gemini 2.0 Flash",
+      "caps": [
+        "vision",
+        "audio",
+        "video",
+        "tools",
+        "json"
+      ],
+      "retireSrc": "https://ai.google.dev/gemini-api/docs/models/gemini-2.0-flash",
+      "archivedOn": "2026-09-20",
+      "note": "模型已按官方公告下架并移出总表，能力记录留档：官方页：输入 音频/图片/视频/文本；函数调用与结构化输出支持，「思考」标注为不支援/实验性，故不计 reasoning。⚠️ 该型号已宣布停服（2026-06-01）。"
+    },
+    {
+      "short": "Claude Haiku 3.5",
+      "caps": [
+        "vision",
+        "file",
+        "tools"
+      ],
+      "retireSrc": "https://docs.anthropic.com/en/docs/about-claude/models",
+      "archivedOn": "2026-09-20",
+      "note": "模型已按官方公告下架并移出总表，能力记录留档：图文与 PDF 输入 + 工具调；「扩展思考」不支持，结构化输出各方来源口径不一（官方无独立参数），故均不入选。⚠️ 该型号已弃用（Vertex 2026-07-05 关停）。"
     }
   ]
 }
