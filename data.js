@@ -2,7 +2,7 @@
  * 主流 AI 大模型性价比对比总表 · 数据层
  * 接口能力 caps 字段：来自 OpenRouter 元数据（input_modalities / supported_parameters），机器可验证，非人工推断
  * 生命周期：retireDate = 下架/停服日期，retireSrc = 该日期来源（官方公告链接 或 "OpenRouter" 聚合平台口径）
- * 更新时间：2026-09-20  |  收录 74 款模型 + 24 组订阅/套餐
+ * 更新时间：2026-09-21  |  收录 74 款模型 + 24 组订阅/套餐
  * ---------------------------------------------------------------------
  * 换算口径：
  *  - 所有价格已统一折算为「人民币 / 每百万 token」
@@ -18,7 +18,7 @@
 
 var META = {
   fx: 7.10,
-  updated: "2026-09-20",
+  updated: "2026-09-21",
   note: "价格为采集快照（官方API直连价 + 国内聚合平台在售价）。订阅/套餐按行业平均用量（约50M输入+10M输出token/月，3:1比例）摊薄折算等效每百万token成本。所有价格统一人民币。标价实时变动，请以各平台官方定价页为准。",
 };
 
@@ -498,12 +498,12 @@ var MODELS = [
 {
   name: "Amazon-Nova-Pro", short: "Amazon Nova Pro", family: "Nova",
   vendor: "Amazon", vendorZh: "亚马逊", type: "通用均衡", billing: "per_token",
-  inputPm: 5.68, outputPm: 22.68, cnyOnly: false, context: "300K",
+  inputPm: 5.68, outputPm: 22.72, cnyOnly: false, context: "300K",
   tags: ["text","multimodal","longctx","code"],
   caps: ["vision","tools"],
   vendorTag: "Amazon Bedrock",
   priceSrc: "Amazon Bedrock 直连（$0.80/$3.20），5折Batch",
-  updated: "2026-09-11",
+  updated: "2026-09-21",
   desc: "AWS 自研中档多模态模型，300K 上下文，深度集成 Bedrock 与 S3/知识层，主打 AWS 生态内的企业工作负载。",
 },
 {
@@ -695,12 +695,12 @@ var MODELS = [
 {
   name: "GLM-5.3", short: "智谱 GLM-5.3", family: "GLM-5",
   vendor: "Zhipu", vendorZh: "智谱", type: "通用均衡", billing: "per_token",
-  inputPm: 6.3616, outputPm: 19.9936, cnyOnly: true, context: "200K",
+  inputPm: 6.461, outputPm: 20.306, cnyOnly: true, context: "200K",
   tags: ["text","code","reasoning","agent","longctx"],
   caps: ["tools","json","reasoning"],
   vendorTag: "阿里云百炼",
   priceSrc: "阿里百炼在售价（¥8/¥28）；OpenRouter 约 $1.12 起",
-  updated: "2026-09-20",
+  updated: "2026-09-21",
   desc: "智谱新一代基座（50亿美元再融资支持研发），Agent 任务与复杂推理见长，深度接入 CodeBits/企业 RAG，主打可落地的智能体编程与工具调用。",
 },
 
@@ -780,12 +780,12 @@ var MODELS = [
 {
   name: "HunYuan-Hy3-Preview", short: "混元 Hy3 Preview", family: "HunYuan Hy3",
   vendor: "Tencent", vendorZh: "腾讯", type: "性价比", billing: "per_token",
-  inputPm: 1.278, outputPm: 4.26, cnyOnly: true, context: "262K",
+  inputPm: 0.9372, outputPm: 3.7488, cnyOnly: true, context: "262K",
   tags: ["text","multimodal","code","reasoning","longctx"],
   caps: ["tools","json","reasoning"],
   vendorTag: "硅基流动",
   priceSrc: "硅基流动在售价（$0.132/$0.528 折算）；腾讯云官方未公示按量 token 定价",
-  updated: "2026-09-18",
+  updated: "2026-09-21",
   desc: "腾讯 2026-04 自研混元 3 代预览版，295B 总参 / 21B 激活的 MoE 架构，原生 256K 上下文，面向 Agent 工作负载优化，代码基准测试接近前沿水平；已接入 CodeBuddy 与腾讯云 Token Plan。",
 },
 
@@ -817,12 +817,12 @@ var MODELS = [
 {
   name: "DeepSeek-V4.1-Flash", short: "DeepSeek V4.1 Flash", family: "DeepSeek-V4.1",
   vendor: "深度求索", vendorZh: "深度求索", type: "性价比", billing: "per_token",
-  inputPm: 1.06, outputPm: 4.26, cnyOnly: false, context: "1.0M",
+  inputPm: 2.13, outputPm: 8.52, cnyOnly: false, context: "1.0M",
   tags: ["text","code","reasoning","longctx"],
   caps: ["vision","tools","json","reasoning"],
   vendorTag: "OpenRouter",
   priceSrc: "OpenRouter 聚合平台在售价（$0.15/$0.60），2026-09-19",
-  updated: "2026-09-19",
+  updated: "2026-09-21",
   desc: "DeepSeek V4 系列最新轻量款，1M 上下文延续极致低价路线，是国产按量成本最低的主力之一。",
 },
 {
