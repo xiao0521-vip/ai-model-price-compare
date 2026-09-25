@@ -107,7 +107,8 @@ const openrouter = {
   // OpenRouter 报价与官方不一致、经人工核实后排除的模型（宁可漏更新，不可写错价）：
   //   gpt-5.6-sol —— OpenAI 官方促销价 $4/$20（至 2026-11-21，见 developers.openai.com），
   //                  OpenRouter 却报 $2/$10，恰好一半，来源不明 → 不采信
-  //   deepseek-v4-flash / deepseek-v4-pro —— DeepSeek 官方价 ¥1/¥2、¥3/¥6（见 api-docs.deepseek.com），
+  //   deepseek-v4-flash / deepseek-v4-pro —— DeepSeek 官方价 Flash ¥1/¥4（2026-09-10 起，
+  //                  缓存未命中/输出，闲时口径；工作日高峰时段翻倍）、Pro ¥3/¥6（见 api-docs.deepseek.com），
   //                  OpenRouter 报聚合平台转售价（Flash 仅 1/3、Pro 高 3.8 倍），口径完全不同 → 不采信，
   //                  这两款锁定官方直连价，除非官方调价（改 data.js 时同步核对 priceSrc）
   skip: new Set(['gpt-5.6-sol', 'deepseek-v4-flash', 'deepseek-v4-pro']),

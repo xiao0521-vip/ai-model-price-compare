@@ -555,12 +555,12 @@ var MODELS = [
 {
   name: "DeepSeek-V4-Flash", short: "DeepSeek V4 Flash", family: "DeepSeek V4",
   vendor: "DeepSeek", vendorZh: "深度求索", type: "性价比", billing: "per_token",
-  inputPm: 1, outputPm: 2, cnyOnly: true, context: "1.0M",
+  inputPm: 1, outputPm: 4, cnyOnly: true, context: "1.0M",
   tags: ["text","code","reasoning","longctx"],
   caps: ["tools","json","reasoning"],
   vendorTag: "官方",
-  priceSrc: "DeepSeek官方 + 阿里百炼/硅基流动同价（¥1/¥2），另有错峰分时价低至5折",
-  updated: "2026-09-18",
+  priceSrc: "DeepSeek官方 2026-09-10 起调整：闲时 ¥1/¥4（缓存命中输入 ¥0.02），工作日 9-12 点/14-18 点高峰翻倍至 ¥2/¥8；api-docs 同步为 $0.15/$0.60",
+  updated: "2026-09-25",
   desc: "深度求索旗舰级开源模型中最具性价比的一档，V4 系列延续低价策略，主打端侧/大规模并发调用，代码与推理均衡，是国产模型中按量成本最低的主力款。",
 },
 {
