@@ -2,7 +2,7 @@
  * 主流 AI 大模型性价比对比总表 · 数据层
  * 接口能力 caps 字段：来自 OpenRouter 元数据（input_modalities / supported_parameters），机器可验证，非人工推断
  * 生命周期：retireDate = 下架/停服日期，retireSrc = 该日期来源（官方公告链接 或 "OpenRouter" 聚合平台口径）
- * 更新时间：2026-09-27  |  收录 74 款模型 + 24 组订阅/套餐
+ * 更新时间：2026-09-28  |  收录 74 款模型 + 24 组订阅/套餐
  * ---------------------------------------------------------------------
  * 换算口径：
  *  - 所有价格已统一折算为「人民币 / 每百万 token」
@@ -18,7 +18,7 @@
 
 var META = {
   fx: 7.10,
-  updated: "2026-09-27",
+  updated: "2026-09-28",
   note: "价格为采集快照（官方API直连价 + 国内聚合平台在售价）。订阅/套餐按行业平均用量（约50M输入+10M输出token/月，3:1比例）摊薄折算等效每百万token成本。所有价格统一人民币。标价实时变动，请以各平台官方定价页为准。",
 };
 
@@ -522,7 +522,7 @@ var MODELS = [
   vendor: "Meta", vendorZh: "Meta", type: "通用均衡", billing: "per_token",
   inputPm: 8.88, outputPm: 30.18, cnyOnly: false, context: "128K",
   tags: ["text","multimodal","code"],
-  caps: ["vision","file","audio","video","tools","json","reasoning"],
+  caps: ["vision","file","video","tools","json","reasoning"],
   vendorTag: "Meta官方",
   priceSrc: "Meta 官方直连（$1.25/$4.25）",
   updated: "2026-08-04",
@@ -566,12 +566,12 @@ var MODELS = [
 {
   name: "DeepSeek-V3.2", short: "DeepSeek V3.2", family: "DeepSeek V3.2",
   vendor: "DeepSeek", vendorZh: "深度求索", type: "轻量", billing: "per_token",
-  inputPm: 1.9099, outputPm: 2.84, cnyOnly: true, context: "164K",
+  inputPm: 1.988, outputPm: 2.982, cnyOnly: true, context: "164K",
   tags: ["text","code","reasoning"],
   caps: ["tools","json","reasoning"],
   vendorTag: "硅基流动",
   priceSrc: "硅基流动在售价（¥4/¥6），缓存命中 ¥0.4/百万token；2026-06-30 起调整至该价",
-  updated: "2026-09-18",
+  updated: "2026-09-28",
   retireSrc: "OpenRouter",
   retireDate: "2026-09-28",
   desc: "DeepSeek V3 系列迭代版，位于 V4 之下提供更经济的通用推理档；缓存命中价仅为输入的一成，适合高重复前缀的批量任务与 RAG。",
@@ -627,12 +627,12 @@ var MODELS = [
 {
   name: "Kimi-K2.6", short: "Kimi K2.6", family: "Kimi K2",
   vendor: "Moonshot", vendorZh: "月之暗面", type: "性价比", billing: "per_token",
-  inputPm: 6.745, outputPm: 28.4, cnyOnly: true, context: "100W",
+  inputPm: 4.615, outputPm: 24.211, cnyOnly: true, context: "100W",
   tags: ["text","multimodal","code","reasoning","longctx"],
   caps: ["vision","tools","json","reasoning"],
   vendorTag: "Kimi官方",
   priceSrc: "Kimi官方直连（¥4/¥21）",
-  updated: "2026-09-18",
+  updated: "2026-09-28",
   desc: "Kimi K2 系列前代版本，100万 token 上下文，价格低于 K2.6 高速版，仍广泛用于长文本与批量任务。",
 },
 {
@@ -673,12 +673,12 @@ var MODELS = [
 {
   name: "GLM-5.3-Flash", short: "智谱 GLM-5.3 Flash", family: "GLM-5.3",
   vendor: "Zhipu", vendorZh: "智谱", type: "编程", billing: "per_token",
-  inputPm: 0.3195, outputPm: 0.994, cnyOnly: true, context: "200K",
+  inputPm: 1.065, outputPm: 3.55, cnyOnly: true, context: "200K",
   tags: ["text","code","reasoning","agent"],
   caps: ["vision","video","tools","json","reasoning"],
   vendorTag: "七牛云AI",
   priceSrc: "七牛云 AI 大模型广场在售价（¥0.4/¥1.4）",
-  updated: "2026-09-27",
+  updated: "2026-09-28",
   desc: "智谱 GLM-5.3 轻量版，输入仅 ¥0.4/百万 token，是国产编程模型中的最低价档，主打高并发代码补全与轻量 Agent 调用。",
 },
 {
@@ -780,12 +780,12 @@ var MODELS = [
 {
   name: "HunYuan-Hy3-Preview", short: "混元 Hy3 Preview", family: "HunYuan Hy3",
   vendor: "Tencent", vendorZh: "腾讯", type: "性价比", billing: "per_token",
-  inputPm: 0.9372, outputPm: 3.7488, cnyOnly: true, context: "262K",
+  inputPm: 1.278, outputPm: 4.26, cnyOnly: true, context: "262K",
   tags: ["text","multimodal","code","reasoning","longctx"],
   caps: ["tools","json","reasoning"],
   vendorTag: "硅基流动",
   priceSrc: "硅基流动在售价（$0.132/$0.528 折算）；腾讯云官方未公示按量 token 定价",
-  updated: "2026-09-27",
+  updated: "2026-09-28",
   desc: "腾讯 2026-04 自研混元 3 代预览版，295B 总参 / 21B 激活的 MoE 架构，原生 256K 上下文，面向 Agent 工作负载优化，代码基准测试接近前沿水平；已接入 CodeBuddy 与腾讯云 Token Plan。",
 },
 
@@ -817,12 +817,12 @@ var MODELS = [
 {
   name: "DeepSeek-V4.1-Flash", short: "DeepSeek V4.1 Flash", family: "DeepSeek-V4.1",
   vendor: "深度求索", vendorZh: "深度求索", type: "性价比", billing: "per_token",
-  inputPm: 2.13, outputPm: 8.52, cnyOnly: false, context: "1.0M",
+  inputPm: 2.13, outputPm: 4.26, cnyOnly: false, context: "1.0M",
   tags: ["text","code","reasoning","longctx"],
   caps: ["vision","tools","json","reasoning"],
   vendorTag: "OpenRouter",
   priceSrc: "OpenRouter 聚合平台在售价（$0.15/$0.60），2026-09-19",
-  updated: "2026-09-25",
+  updated: "2026-09-28",
   desc: "DeepSeek V4 系列最新轻量款，1M 上下文延续极致低价路线，是国产按量成本最低的主力之一。",
 },
 {
@@ -850,12 +850,12 @@ var MODELS = [
 {
   name: "MiniMax-M2.7", short: "MiniMax M2.7", family: "MiniMax-M",
   vendor: "MiniMax", vendorZh: "MiniMax", type: "性价比", billing: "per_token",
-  inputPm: 1.491, outputPm: 5.964, cnyOnly: false, context: "200K",
+  inputPm: 2.13, outputPm: 8.52, cnyOnly: false, context: "200K",
   tags: ["text","code","agent"],
   caps: ["tools","json","reasoning"],
   vendorTag: "OpenRouter",
   priceSrc: "OpenRouter 聚合平台在售价（$0.30/$1.20），2026-09-19",
-  updated: "2026-09-27",
+  updated: "2026-09-28",
   desc: "MiniMax M 系列稳定版，Agent 任务表现出色，已进入腾讯云 Token Plan 等多个聚合平台的推荐清单。",
 },
 {
