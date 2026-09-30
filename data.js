@@ -2,7 +2,7 @@
  * 主流 AI 大模型性价比对比总表 · 数据层
  * 接口能力 caps 字段：来自 OpenRouter 元数据（input_modalities / supported_parameters），机器可验证，非人工推断
  * 生命周期：retireDate = 下架/停服日期，retireSrc = 该日期来源（官方公告链接 或 "OpenRouter" 聚合平台口径）
- * 更新时间：2026-09-29  |  收录 74 款模型 + 24 组订阅/套餐
+ * 更新时间：2026-09-30  |  收录 74 款模型 + 24 组订阅/套餐
  * ---------------------------------------------------------------------
  * 换算口径：
  *  - 所有价格已统一折算为「人民币 / 每百万 token」
@@ -18,7 +18,7 @@
 
 var META = {
   fx: 7.10,
-  updated: "2026-09-29",
+  updated: "2026-09-30",
   note: "价格为采集快照（官方API直连价 + 国内聚合平台在售价）。订阅/套餐按行业平均用量（约50M输入+10M输出token/月，3:1比例）摊薄折算等效每百万token成本。所有价格统一人民币。标价实时变动，请以各平台官方定价页为准。",
 };
 
@@ -638,12 +638,12 @@ var MODELS = [
 {
   name: "Kimi-K2.7-Code", short: "Kimi K2.7 Code", family: "Kimi K2.7",
   vendor: "Moonshot", vendorZh: "月之暗面", type: "编程", billing: "per_token",
-  inputPm: 4.659, outputPm: 23.43, cnyOnly: true, context: "262K",
+  inputPm: 4.7655, outputPm: 23.785, cnyOnly: true, context: "262K",
   tags: ["text","code","reasoning","agent"],
   caps: ["vision","tools","json","reasoning"],
   vendorTag: "硅基流动",
   priceSrc: "硅基流动在售价（¥6.1/¥26.98，$0.859/$3.8）；另有高速版价格翻倍换180 Token/秒输出速度",
-  updated: "2026-09-25",
+  updated: "2026-09-30",
   desc: "Kimi 编程专用版本，针对代码生成与多步 Agent 调用优化，提供标准与高速双层级，主打 AI 编程与工具调用场景。",
 },
 {
@@ -684,12 +684,12 @@ var MODELS = [
 {
   name: "GLM-5.2", short: "智谱 GLM-5.2", family: "GLM-5",
   vendor: "Zhipu", vendorZh: "智谱", type: "通用均衡", billing: "per_token",
-  inputPm: 2.769, outputPm: 31.24, cnyOnly: true, context: "200K",
+  inputPm: 2.556, outputPm: 28.329, cnyOnly: true, context: "200K",
   tags: ["text","code","reasoning","agent"],
   caps: ["tools","json","reasoning"],
   vendorTag: "七牛云AI",
   priceSrc: "七牛云在售价（¥4/¥18）；硅基流动在售价 ¥9.25/¥28.85（$1.302/$4.092）",
-  updated: "2026-09-29",
+  updated: "2026-09-30",
   desc: "智谱 GLM-5 系列前代版本，200K 上下文，Agent 任务与工具调用见长，价格低于 GLM-5.3，适合成本敏感的生产场景。",
 },
 {
@@ -780,12 +780,12 @@ var MODELS = [
 {
   name: "HunYuan-Hy3-Preview", short: "混元 Hy3 Preview", family: "HunYuan Hy3",
   vendor: "Tencent", vendorZh: "腾讯", type: "性价比", billing: "per_token",
-  inputPm: 0.9372, outputPm: 3.7488, cnyOnly: true, context: "262K",
+  inputPm: 1.278, outputPm: 4.26, cnyOnly: true, context: "262K",
   tags: ["text","multimodal","code","reasoning","longctx"],
   caps: ["tools","json","reasoning"],
   vendorTag: "硅基流动",
   priceSrc: "硅基流动在售价（$0.132/$0.528 折算）；腾讯云官方未公示按量 token 定价",
-  updated: "2026-09-29",
+  updated: "2026-09-30",
   desc: "腾讯 2026-04 自研混元 3 代预览版，295B 总参 / 21B 激活的 MoE 架构，原生 256K 上下文，面向 Agent 工作负载优化，代码基准测试接近前沿水平；已接入 CodeBuddy 与腾讯云 Token Plan。",
 },
 
