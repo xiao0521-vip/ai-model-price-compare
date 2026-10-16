@@ -2,7 +2,7 @@
  * 主流 AI 大模型性价比对比总表 · 数据层
  * 接口能力 caps 字段：来自 OpenRouter 元数据（input_modalities / supported_parameters），机器可验证，非人工推断
  * 生命周期：retireDate = 下架/停服日期，retireSrc = 该日期来源（官方公告链接 或 "OpenRouter" 聚合平台口径）
- * 更新时间：2026-10-15  |  收录 74 款模型 + 24 组订阅/套餐
+ * 更新时间：2026-10-16  |  收录 74 款模型 + 24 组订阅/套餐
  * ---------------------------------------------------------------------
  * 换算口径：
  *  - 所有价格已统一折算为「人民币 / 每百万 token」
@@ -18,7 +18,7 @@
 
 var META = {
   fx: 7.10,
-  updated: "2026-10-15",
+  updated: "2026-10-16",
   note: "价格为采集快照（官方API直连价 + 国内聚合平台在售价）。订阅/套餐按行业平均用量（约50M输入+10M输出token/月，3:1比例）摊薄折算等效每百万token成本。所有价格统一人民币。标价实时变动，请以各平台官方定价页为准。",
 };
 
@@ -348,12 +348,12 @@ var MODELS = [
 {
   name: "Gemini-3.8-Flash", short: "Gemini 3.8 Flash", family: "Gemini 3.8",
   vendor: "Google", vendorZh: "谷歌", type: "性价比", billing: "per_token",
-  inputPm: 5.33, outputPm: 26.63, cnyOnly: false, context: "1.0M",
+  inputPm: 5.8575, outputPm: 29.2875, cnyOnly: false, context: "1.0M",
   tags: ["text","multimodal","longctx","code"],
   caps: ["vision","file","audio","video","tools","json","reasoning"],
   vendorTag: "Google官方",
   priceSrc: "Google官方直连（促销 $0.75/$3.75 至2026-12-31，2027年1月起 $1.50/$7.50）",
-  updated: "2026-09-11",
+  updated: "2026-10-16",
   desc: "Google 最新 Flash 档，当前处于促销期（12月底后翻倍），1M 上下文 + 多模态，主打高吞吐与长文档处理。",
 },
 {
@@ -660,12 +660,12 @@ var MODELS = [
 {
   name: "Kimi-K3", short: "月之暗面 Kimi K3", family: "Kimi K3",
   vendor: "Moonshot", vendorZh: "月之暗面", type: "通用旗舰", billing: "per_token",
-  inputPm: 3.195, outputPm: 106.5, cnyOnly: true, context: "100W",
+  inputPm: 2.1584, outputPm: 87.2874, cnyOnly: true, context: "100W",
   tags: ["text","multimodal","code","reasoning","longctx"],
   caps: ["vision","video","tools","json","reasoning"],
   vendorTag: "阿里云百炼/官方",
   priceSrc: "阿里百炼在售价（¥20/¥100），官方API另计；2.8万亿参数、100万token上下文、原生视觉",
-  updated: "2026-10-15",
+  updated: "2026-10-16",
   desc: "月之暗面 2026-07 发布的 2.8万亿参数开源旗舰，100万 token 上下文、原生视觉理解，代码盲测登顶多项榜单，定价约为 OpenAI 旗舰的七分之一。",
 },
 
@@ -673,34 +673,34 @@ var MODELS = [
 {
   name: "GLM-5.3-Flash", short: "智谱 GLM-5.3 Flash", family: "GLM-5.3",
   vendor: "Zhipu", vendorZh: "智谱", type: "编程", billing: "per_token",
-  inputPm: 1.065, outputPm: 3.55, cnyOnly: true, context: "200K",
+  inputPm: 1.065, outputPm: 6.39, cnyOnly: true, context: "200K",
   tags: ["text","code","reasoning","agent"],
   caps: ["vision","video","tools","json","reasoning"],
   vendorTag: "七牛云AI",
   priceSrc: "七牛云 AI 大模型广场在售价（¥0.4/¥1.4）",
-  updated: "2026-10-15",
+  updated: "2026-10-16",
   desc: "智谱 GLM-5.3 轻量版，输入仅 ¥0.4/百万 token，是国产编程模型中的最低价档，主打高并发代码补全与轻量 Agent 调用。",
 },
 {
   name: "GLM-5.2", short: "智谱 GLM-5.2", family: "GLM-5",
   vendor: "Zhipu", vendorZh: "智谱", type: "通用均衡", billing: "per_token",
-  inputPm: 0.2045, outputPm: 49.7, cnyOnly: true, context: "200K",
+  inputPm: 0.2627, outputPm: 63.9, cnyOnly: true, context: "200K",
   tags: ["text","code","reasoning","agent"],
   caps: ["tools","json","reasoning"],
   vendorTag: "七牛云AI",
   priceSrc: "七牛云在售价（¥4/¥18）；硅基流动在售价 ¥9.25/¥28.85（$1.302/$4.092）",
-  updated: "2026-10-15",
+  updated: "2026-10-16",
   desc: "智谱 GLM-5 系列前代版本，200K 上下文，Agent 任务与工具调用见长，价格低于 GLM-5.3，适合成本敏感的生产场景。",
 },
 {
   name: "GLM-5.3", short: "智谱 GLM-5.3", family: "GLM-5",
   vendor: "Zhipu", vendorZh: "智谱", type: "通用均衡", billing: "per_token",
-  inputPm: 0.213, outputPm: 34.08, cnyOnly: true, context: "200K",
+  inputPm: 0.5609, outputPm: 34.08, cnyOnly: true, context: "200K",
   tags: ["text","code","reasoning","agent","longctx"],
   caps: ["tools","json","reasoning"],
   vendorTag: "阿里云百炼",
   priceSrc: "阿里百炼在售价（¥8/¥28）；OpenRouter 约 $1.12 起",
-  updated: "2026-10-15",
+  updated: "2026-10-16",
   desc: "智谱新一代基座（50亿美元再融资支持研发），Agent 任务与复杂推理见长，深度接入 CodeBits/企业 RAG，主打可落地的智能体编程与工具调用。",
 },
 
@@ -780,12 +780,12 @@ var MODELS = [
 {
   name: "HunYuan-Hy3-Preview", short: "混元 Hy3 Preview", family: "HunYuan Hy3",
   vendor: "Tencent", vendorZh: "腾讯", type: "性价比", billing: "per_token",
-  inputPm: 0.9372, outputPm: 3.7488, cnyOnly: true, context: "262K",
+  inputPm: 1.278, outputPm: 4.26, cnyOnly: true, context: "262K",
   tags: ["text","multimodal","code","reasoning","longctx"],
   caps: ["tools","json","reasoning"],
   vendorTag: "硅基流动",
   priceSrc: "硅基流动在售价（$0.132/$0.528 折算）；腾讯云官方未公示按量 token 定价",
-  updated: "2026-10-15",
+  updated: "2026-10-16",
   desc: "腾讯 2026-04 自研混元 3 代预览版，295B 总参 / 21B 激活的 MoE 架构，原生 256K 上下文，面向 Agent 工作负载优化，代码基准测试接近前沿水平；已接入 CodeBuddy 与腾讯云 Token Plan。",
 },
 
@@ -817,12 +817,12 @@ var MODELS = [
 {
   name: "DeepSeek-V4.1-Flash", short: "DeepSeek V4.1 Flash", family: "DeepSeek-V4.1",
   vendor: "深度求索", vendorZh: "深度求索", type: "性价比", billing: "per_token",
-  inputPm: 2.13, outputPm: 6.3261, cnyOnly: false, context: "1.0M",
+  inputPm: 2.13, outputPm: 4.8564, cnyOnly: false, context: "1.0M",
   tags: ["text","code","reasoning","longctx"],
   caps: ["vision","tools","json","reasoning"],
   vendorTag: "OpenRouter",
   priceSrc: "OpenRouter 聚合平台在售价（$0.15/$0.60），2026-09-19",
-  updated: "2026-10-14",
+  updated: "2026-10-16",
   desc: "DeepSeek V4 系列最新轻量款，1M 上下文延续极致低价路线，是国产按量成本最低的主力之一。",
 },
 {
