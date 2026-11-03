@@ -2,7 +2,7 @@
  * 主流 AI 大模型性价比对比总表 · 数据层
  * 接口能力 caps 字段：来自 OpenRouter 元数据（input_modalities / supported_parameters），机器可验证，非人工推断
  * 生命周期：retireDate = 下架/停服日期，retireSrc = 该日期来源（官方公告链接 或 "OpenRouter" 聚合平台口径）
- * 更新时间：2026-11-02  |  收录 74 款模型 + 24 组订阅/套餐
+ * 更新时间：2026-11-03  |  收录 74 款模型 + 24 组订阅/套餐
  * ---------------------------------------------------------------------
  * 换算口径：
  *  - 所有价格已统一折算为「人民币 / 每百万 token」
@@ -18,7 +18,7 @@
 
 var META = {
   fx: 7.10,
-  updated: "2026-11-02",
+  updated: "2026-11-03",
   note: "价格为采集快照（官方API直连价 + 国内聚合平台在售价）。订阅/套餐按行业平均用量（约50M输入+10M输出token/月，3:1比例）摊薄折算等效每百万token成本。所有价格统一人民币。标价实时变动，请以各平台官方定价页为准。",
 };
 
@@ -509,12 +509,12 @@ var MODELS = [
 {
   name: "Llama-3.3-70B-Instruct", short: "Llama 3.3 70B", family: "Llama 3.3",
   vendor: "Meta", vendorZh: "Meta", type: "通用均衡", billing: "per_token",
-  inputPm: 4.189, outputPm: 2.272, cnyOnly: false, context: "128K",
+  inputPm: 1.42, outputPm: 3.692, cnyOnly: false, context: "128K",
   tags: ["text","code","reasoning","longctx"],
   caps: ["tools","json"],
   vendorTag: "Groq托管",
   priceSrc: "Groq 托管价（$0.59/$0.79），其他云各异",
-  updated: "2026-10-17",
+  updated: "2026-11-03",
   desc: "Meta 开源主力，70B 参数可在边缘/Groq 超低延迟部署，各云差异定价，主打开源可控部署与自托管场景。",
 },
 {
@@ -673,12 +673,12 @@ var MODELS = [
 {
   name: "GLM-5.3-Flash", short: "智谱 GLM-5.3 Flash", family: "GLM-5.3",
   vendor: "Zhipu", vendorZh: "智谱", type: "编程", billing: "per_token",
-  inputPm: 0.2023, outputPm: 0.6553, cnyOnly: true, context: "200K",
+  inputPm: 0.2222, outputPm: 0.6007, cnyOnly: true, context: "200K",
   tags: ["text","code","reasoning","agent"],
   caps: ["vision","video","tools","json","reasoning"],
   vendorTag: "七牛云AI",
   priceSrc: "七牛云 AI 大模型广场在售价（¥0.4/¥1.4）",
-  updated: "2026-11-01",
+  updated: "2026-11-03",
   desc: "智谱 GLM-5.3 轻量版，输入仅 ¥0.4/百万 token，是国产编程模型中的最低价档，主打高并发代码补全与轻量 Agent 调用。",
 },
 {
@@ -780,12 +780,12 @@ var MODELS = [
 {
   name: "HunYuan-Hy3-Preview", short: "混元 Hy3 Preview", family: "HunYuan Hy3",
   vendor: "Tencent", vendorZh: "腾讯", type: "性价比", billing: "per_token",
-  inputPm: 0.5857, outputPm: 2.343, cnyOnly: true, context: "262K",
+  inputPm: 0.9372, outputPm: 3.7488, cnyOnly: true, context: "262K",
   tags: ["text","multimodal","code","reasoning","longctx"],
   caps: ["tools","json","reasoning"],
   vendorTag: "硅基流动",
   priceSrc: "硅基流动在售价（$0.132/$0.528 折算）；腾讯云官方未公示按量 token 定价",
-  updated: "2026-11-02",
+  updated: "2026-11-03",
   desc: "腾讯 2026-04 自研混元 3 代预览版，295B 总参 / 21B 激活的 MoE 架构，原生 256K 上下文，面向 Agent 工作负载优化，代码基准测试接近前沿水平；已接入 CodeBuddy 与腾讯云 Token Plan。",
 },
 
@@ -817,23 +817,23 @@ var MODELS = [
 {
   name: "DeepSeek-V4.1-Flash", short: "DeepSeek V4.1 Flash", family: "DeepSeek-V4.1",
   vendor: "深度求索", vendorZh: "深度求索", type: "性价比", billing: "per_token",
-  inputPm: 0.3195, outputPm: 3.55, cnyOnly: false, context: "1.0M",
+  inputPm: 1.065, outputPm: 4.26, cnyOnly: false, context: "1.0M",
   tags: ["text","code","reasoning","longctx"],
   caps: ["vision","tools","json","reasoning"],
   vendorTag: "OpenRouter",
   priceSrc: "OpenRouter 聚合平台在售价（$0.15/$0.60），2026-09-19",
-  updated: "2026-11-02",
+  updated: "2026-11-03",
   desc: "DeepSeek V4 系列最新轻量款，1M 上下文延续极致低价路线，是国产按量成本最低的主力之一。",
 },
 {
   name: "Hunyuan-Hy4-Preview", short: "混元 Hy4 Preview", family: "混元 Hy4",
   vendor: "腾讯", vendorZh: "腾讯", type: "通用旗舰", billing: "per_token",
-  inputPm: 5.3293, outputPm: 15.9814, cnyOnly: false, context: "1.0M",
+  inputPm: 5.9214, outputPm: 17.7571, cnyOnly: false, context: "1.0M",
   tags: ["text","multimodal","reasoning","longctx"],
   caps: ["tools","json","reasoning"],
   vendorTag: "OpenRouter",
   priceSrc: "OpenRouter 聚合平台在售价（$0.83/$2.50），2026-09-19",
-  updated: "2026-11-02",
+  updated: "2026-11-03",
   desc: "腾讯混元新一代预览版，1M 上下文，多模态+推理一体，逐步接替 Hy3 成为腾讯系主力。",
 },
 {
